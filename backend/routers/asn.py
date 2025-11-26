@@ -2,11 +2,12 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Any, Dict, Optional
 
-import asn1tools
+from backend.core.asn1_runtime import asn1tools
 
 from backend.core.manager import manager
 from backend.core.serialization import deserialize_asn1_data, serialize_asn1_data
 from backend.core.tracer import TraceService
+from backend.core.type_tree import build_type_tree
 
 
 router = APIRouter()
@@ -101,8 +102,10 @@ async def get_type_definition(protocol: str, type_name: str):
     if not type_obj:
          raise HTTPException(status_code=404, detail=f"Type '{type_name}' not found")
 
-    # The string representation of the type object is often the ASN.1 definition (roughly)
-    return {"definition": str(type_obj)}
+    return {
+        "definition": str(type_obj),
+        "tree": build_type_tree(type_obj),
+    }
 
 
 @router.post("/debug/normalize")

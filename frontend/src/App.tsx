@@ -13,10 +13,13 @@ import {
   Tabs,
   JsonInput,
   Paper,
+  Collapse,
 } from '@mantine/core'
 import axios from 'axios'
 import { BitInspectorPanel } from './components/trace/BitInspectorPanel'
 import type { TraceResponsePayload } from './components/trace/types'
+import { DefinitionTree } from './components/definition/DefinitionTree'
+import type { DefinitionNode } from './components/definition/types'
 
 const inferDevApiBase = () => {
   if (typeof window === 'undefined') {
@@ -208,6 +211,8 @@ function App() {
   const [traceData, setTraceData] = useState<TraceResponsePayload | null>(null)
   const [traceLoading, setTraceLoading] = useState(false)
   const [traceError, setTraceError] = useState<string | null>(null)
+  const [definitionTree, setDefinitionTree] = useState<DefinitionNode | null>(null)
+  const [definitionOpen, setDefinitionOpen] = useState(false)
 
   useEffect(() => {
     axios.get('/api/asn/protocols')
@@ -252,12 +257,17 @@ function App() {
 
   useEffect(() => {
     if (selectedProtocol && selectedType) {
-        // Fetch definition
         axios.get(`/api/asn/protocols/${selectedProtocol}/types/${selectedType}`)
-            .then(res => setTypeDefinition(res.data.definition))
-            .catch(err => console.error(err))
+            .then(res => {
+              setDefinitionTree(res.data.tree)
+              setDefinitionOpen(false)
+            })
+            .catch(err => {
+              console.error(err)
+              setDefinitionTree(null)
+            })
     } else {
-        setTypeDefinition(null)
+        setDefinitionTree(null)
     }
   }, [selectedProtocol, selectedType])
 
@@ -265,6 +275,12 @@ function App() {
     setTraceData(null)
     setTraceError(null)
   }, [selectedProtocol, selectedType])
+
+  useEffect(() => {
+    if (!definitionTree) {
+      setDefinitionOpen(false)
+    }
+  }, [definitionTree])
 
   const fetchTrace = async (protocol: string, typeName: string, payloadHex: string) => {
     if (!payloadHex.trim()) {
@@ -411,19 +427,23 @@ function App() {
               searchable
               disabled={!selectedProtocol}
             />
-             <Button variant="light" onClick={loadExample} disabled={!selectedType}>
+             <Button variant="light" onClick={loadExample} disabled={!selectedDemoOption}>
                Load Example
              </Button>
         </Group>
 
-        {/* Type Definition Preview */}
-        {typeDefinition && (
-            <Stack gap="xs" mb="md">
-                <Text size="sm" fw={500}>Definition:</Text>
-                <Code block style={{ maxHeight: 150, overflow: 'auto' }}>
-                    {typeDefinition}
-                </Code>
-            </Stack>
+        {definitionTree && (
+            <Paper withBorder p="sm" mb="md">
+              <Group justify="space-between" align="center" mb="xs">
+                <Text size="sm" fw={500}>Definition Tree</Text>
+                <Button size="xs" variant="subtle" onClick={() => setDefinitionOpen((prev) => !prev)}>
+                  {definitionOpen ? 'Hide' : 'Show'}
+                </Button>
+              </Group>
+              <Collapse in={definitionOpen}>
+                <DefinitionTree root={definitionTree} />
+              </Collapse>
+            </Paper>
         )}
 
         {error && (

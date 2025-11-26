@@ -83,6 +83,7 @@ python -m mypy backend/
 - **Validation**: Constraints (Size, Range) are enforced. Errors are displayed in the UI.
 - **Example Loader**: Auto-fill valid JSON for testing (choose `<Type> (Valid Demo)`).
 - **Error Demos**: Pick the `<Type> (Error Demo)` option to insert a payload that violates constraints and see validation errors.
+- **Definition Tree**: Expand the collapsible definition panel to inspect nested ASN.1 constraints when needed.
 
 ## ASN DAO Metadata API
 - `GET /api/asn/protocols/metadata`: returns the precompiled ASN_DAO for every protocol, including the list of source files (relative to `asn_specs/`) and available type names.
