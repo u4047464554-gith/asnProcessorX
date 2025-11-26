@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from functools import wraps
 from typing import Any, Dict, List, Optional, Tuple
 
-import asn1tools
+from backend.core.asn1_runtime import asn1tools
 
 from backend.core.manager import AsnManager
 from backend.core.serialization import serialize_asn1_data

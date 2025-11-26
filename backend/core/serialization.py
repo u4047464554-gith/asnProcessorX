@@ -25,10 +25,6 @@ def _extract_choice(data: Dict[str, Any]) -> Tuple[str, Any] | None:
             marker_value = data[marker_key]
             if isinstance(marker_value, str) and marker_value.strip():
                 return marker_value, data["value"]
-    if len(data) == 1:
-        key, value = next(iter(data.items()))
-        if isinstance(key, str) and key.strip():
-            return key, value
     return None
 
 

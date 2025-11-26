@@ -121,3 +121,29 @@ python -m mypy backend/
   "payload": "0x4578616d706c652073657373696f6e207061796c6f6164"
 }
 ```
+
+### Parameterization Demo
+`parameterization_demo` exercises patched X.683 support (type + value parameters). A few handy payloads:
+
+```json
+{
+  "protocol": "parameterization_demo",
+  "type_name": "TemplateInteger",
+  "data": {
+    "id": 42,
+    "payload": 1337
+  }
+}
+```
+
+```json
+{
+  "protocol": "parameterization_demo",
+  "type_name": "BoundedBooleanSeq5",
+  "data": {
+    "samples": [true, false, true]
+  }
+}
+```
+
+> **CHOICE notation:** Use the explicit `{"$choice": "<alternative>", "value": ...}` shape. Implicit single-key CHOICE objects are no longer auto-detected so that single-field SEQUENCE types (common in parameterized constructs) encode correctly.

@@ -1,0 +1,33 @@
+ParamDemo DEFINITIONS AUTOMATIC TAGS ::=
+BEGIN
+
+Template { PayloadType } ::= SEQUENCE {
+    id INTEGER,
+    payload PayloadType
+}
+
+TemplateInteger ::= Template { INTEGER }
+
+TemplateBooleanSeq { ItemType } ::= SEQUENCE {
+    flag BOOLEAN,
+    nested Template { ItemType }
+}
+
+TemplateBooleanSeqOfInt ::= TemplateBooleanSeq { INTEGER }
+
+Envelope ::= TemplateBooleanSeq { BOOLEAN }
+
+BoundedBooleanSeq { INTEGER : maxSize } ::= SEQUENCE {
+    samples SEQUENCE (SIZE (0..maxSize)) OF BOOLEAN
+}
+
+BoundedBooleanSeq5 ::= BoundedBooleanSeq { 5 }
+
+RangeLimitedInt { INTEGER : lower, INTEGER : upper } ::= SEQUENCE {
+    value INTEGER (lower..upper)
+}
+
+RangeLimited7To42 ::= RangeLimitedInt { 7, 42 }
+
+END
+

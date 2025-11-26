@@ -1,4 +1,4 @@
-import asn1tools
+from backend.core.asn1_runtime import asn1tools
 import os
 
 # Compile the simple schema

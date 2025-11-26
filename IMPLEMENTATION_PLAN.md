@@ -196,3 +196,57 @@
 1. Select `simple_demo` → `Person`
 2. Enter JSON with `age: 150` (exceeds 0..120 constraint)
 3. Click "Encode" → Error displayed: constraint violation
+
+---
+
+## 8. X.683 Parameterization Workstream
+
+### 8.1 Requirements Recap
+- **Scope**: Support X.683 parameterization in three passes—formal type parameters (1a), value parameters (1b), and Information Object Classes/sets (1c).
+- **Use cases**: Multi-module specs (e.g., 3GPP RRC) that rely on parameterized SEQUENCE/CHOICE definitions, nested parameterized types, and constraints driven by passed values.
+- **Deliverables**: Parser/loader extensions, runtime resolution during encode/decode, regression specs & tests, and UX surface updates so users can target parameterized definitions confidently.
+
+### 8.2 Research Findings
+- **Spec highlights**: X.683 defines (a) declaration syntax (`Type { T } ::= ...`), (b) actual parameter binding `Foo { INTEGER }`, (c) propagation rules when parameterized types themselves reference other parameterized types, and (d) dual value+type parameters influencing constraints.
+- **asn1tools baseline**: Upstream already parses parameterized definitions (see `parser.convert_parameterized_*`) and partially rewrites them in `asn1tools/codecs/compiler.py` via `pre_process_parameterization_step_1/2`. However, the current release strips parameterized type descriptors after compilation, meaning tooling such as our manager/tracer cannot expose parameter metadata or accept actual parameters at runtime.
+- **Gap for ASN Processor**:
+  - No API surface to select instantiated parameterized types (UI only lists fully resolved names).
+  - Serialization helpers do not understand parameter scope when converting JSON↔PER.
+  - Tracer lacks awareness of substituted definitions, so bit-level introspection cannot report bound parameters.
+
+### 8.3 Design Direction
+1. **Metadata Capture**  
+   - Extend `AsnManager` to store parameter signatures (`parameters`, `actual-parameters`) before `asn1tools` removes them (hook into compilation via `pre_process_parameterization_step_*` or a preprocessing mirror in `backend/core/manager.py`).
+   - Persist enriched descriptors in `ProtocolMetadata` so the frontend can show which types remain template-like and what arguments they expect.
+2. **Resolution Pipeline**  
+   - Introduce a resolver utility that, given a type reference plus actual parameters, clones the compiler’s descriptor, substitutes dummy parameters (mirroring `pre_process_parameterization_step_1_dummy_to_actual_type`), and produces a concrete type for encode/decode.
+   - Ensure resolver can operate recursively for nested parameterized references and can substitute: member types, element types, `SIZE`, `WITH COMPONENTS`, and `restricted-to` ranges.
+3. **Serialization & Validation**  
+   - `deserialize_asn1_data`/`serialize_asn1_data` stay mostly intact; however, resolution must happen before calling `asn1tools.encode/decode`, and any validation errors should reference instantiated names (e.g., `B { BOOLEAN, INTEGER }`).
+   - CHOICE normalization now requires the explicit `{"$choice": "...", "value": ...}` wrapper to avoid colliding with single-field SEQUENCEs that appear frequently in parameterized templates.
+4. **Tracing Integration**  
+   - Propagate resolved descriptors into `TraceService` to preserve human-friendly node labels and to display actual parameters alongside type names for clarity.
+5. **Testing Assets**  
+   - Craft specs under `asn_specs/multi_file_demo/parameterization_demo/` covering:
+     * Type-only substitution (Phase 2).
+     * Value-driven constraints for Phase 3.
+     * IOC adoption (Phase 4, optional).
+   - Mirror upstream fixtures (see `sources/asn1tools/tests/files/parameterization.asn`) to keep parity with asn1tools behavior and guard against regressions.
+
+### 8.4 Work Breakdown (mirrors execution plan)
+1. **Phase 1 – Research & Design (✅ ongoing now)**  
+   - Capture spec interpretation (this section) and pinpoint touch-points inside `backend/core/*`.
+2. **Phase 2 – Type Parameterization**  
+   - Parser/manager metadata, resolver core, encode/decode plumbing, tests.
+3. **Phase 3 – Value Parameters**  
+   - Extend resolver to propagate actual values into constraints/SIZE ranges; add JSON schema hints so UI can prompt for required values.
+4. **Phase 4 – IOC Parameters**  
+   - If customer specs rely on parameterized object classes, derive requirements from `x683.asn` fixture and repeat the resolver pattern.
+5. **Docs & Samples**  
+   - Update README with usage instructions, provide CLI/REST examples, and keep sample specs + expected outputs version-controlled for reproducibility.
+
+### 8.5 IOC Parameterization Assessment
+- X.683 object class/set parameterization remains rare in the customer-provided specs; the new `parameterization_demo` plus 3GPP samples cover only type/value parameters.
+- The vendored `asn1tools` parser already exposes hooks (`convert_parameterized_object_*`); we hardened it against malformed tokens so mixed modules at least parse cleanly.
+- Implementing full IOC binding would require extending `codecs/compiler.py` with resolution logic similar to `pre_process_parameterization_step_1_dummy_to_actual_type`, plus new regression specs (see `sources/asn1tools/tests/files/x683.asn` for the canonical fixture).
+- Action: defer full IOC substitution until we have a spec that exercises it—current sprint delivers the necessary groundwork (parser stability, vendor override, test scaffolding) so we can add it incrementally.
