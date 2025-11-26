@@ -1,42 +1,16 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import Dict, Any, Optional, Tuple
-from backend.core.manager import manager
+from typing import Any, Dict, Optional
+
 import asn1tools
 
-CHOICE_META_KEYS = {"value", "$choice", "choice"}  # Keys used for CHOICE encoding
-
-
-def _extract_choice(data: Dict[str, Any]) -> Optional[Tuple[str, Any]]:
-    """
-    Attempt to interpret a dict as an ASN.1 CHOICE value.
-    Accepts multiple notations:
-      - {"$choice": "randomValue", "value": ...}
-      - {"choice": "randomValue", "value": ...}
-      - {"": "randomValue", "value": ...}    (what the current UI sends)
-      - {"randomValue": ... }                (single-key implicit CHOICE)
-    """
-    if "$choice" in data and "value" in data:
-        return data["$choice"], data["value"]
-    if "choice" in data and "value" in data:
-        return data["choice"], data["value"]
-    if "value" in data:
-        extra_keys = [
-            key for key in data.keys() if key not in CHOICE_META_KEYS
-        ]
-        if len(extra_keys) == 1:
-            marker_key = extra_keys[0]
-            marker_value = data[marker_key]
-            if isinstance(marker_value, str) and marker_value.strip():
-                return marker_value, data["value"]
-    if len(data) == 1:
-        key, value = next(iter(data.items()))
-        if isinstance(key, str) and key.strip():
-            return key, value
-    return None
+from backend.core.manager import manager
+from backend.core.serialization import deserialize_asn1_data, serialize_asn1_data
+from backend.core.tracer import TraceService
 
 
 router = APIRouter()
+trace_service = TraceService(manager)
 
 class DecodeRequest(BaseModel):
     hex_data: str
@@ -48,6 +22,13 @@ class EncodeRequest(BaseModel):
     protocol: str
     type_name: str
     data: Dict[str, Any]
+    encoding_rule: str = "per"
+
+
+class TraceRequest(BaseModel):
+    hex_data: str
+    protocol: str
+    type_name: str
     encoding_rule: str = "per"
 
 @router.post("/encode")
@@ -85,36 +66,6 @@ async def encode_message(request: EncodeRequest):
          raise HTTPException(status_code=400, detail=f"Encoding Error: {str(e)}")
     except Exception as e:
          raise HTTPException(status_code=500, detail=f"Internal Error: {str(e)}")
-
-def deserialize_asn1_data(data):
-    """
-    Recursively convert hex strings/special formats to bytes/tuples expected by asn1tools.
-    
-    Formats:
-    - Hex Bytes: {"$hex": "deadbeef"} -> b'\xde\xad\xbe\xef'
-    - Choice: {"$choice": "optionName", "value": "optionValue"} -> ('optionName', 'optionValue')
-    - Bit String Tuple: ["0xdead", 12] -> (b'\xde\xad', 12)
-    """
-    if isinstance(data, dict):
-        # Check for special hex marker
-        if "$hex" in data:
-            return bytes.fromhex(data["$hex"])
-        choice_candidate = _extract_choice(data)
-        if choice_candidate:
-            choice_name, choice_value = choice_candidate
-            return (choice_name, deserialize_asn1_data(choice_value))
-        return {k: deserialize_asn1_data(v) for k, v in data.items()}
-    elif isinstance(data, list):
-        # Support tuple for BIT STRING: [hex_str, bit_len]
-        if len(data) == 2 and isinstance(data[0], str) and isinstance(data[1], int):
-             if data[0].startswith("0x"):
-                 # Important: Ensure we return a tuple, NOT a list. 
-                 return (bytes.fromhex(data[0].replace("0x", "")), data[1])
-        return [deserialize_asn1_data(v) for v in data]
-    elif isinstance(data, str):
-        if data.startswith("0x"):
-             return bytes.fromhex(data.replace("0x", ""))
-    return data
 
 @router.on_event("startup")
 async def startup_event():
@@ -243,26 +194,29 @@ async def decode_message(request: DecodeRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-def serialize_asn1_data(data):
-    """Convert asn1tools decoded data to JSON-serializable format."""
-    if isinstance(data, dict):
-        return {k: serialize_asn1_data(v) for k, v in data.items()}
-    elif isinstance(data, tuple):
-        # Handle CHOICE tuples: ('choice_name', value)
-        # and BIT STRING tuples: (bytes, bit_length)
-        if len(data) == 2:
-            first, second = data
-            if isinstance(first, str):
-                # CHOICE: ('choice_name', value)
-                return {"$choice": first, "value": serialize_asn1_data(second)}
-            elif isinstance(first, (bytes, bytearray)) and isinstance(second, int):
-                # BIT STRING: (bytes, bit_length)
-                return [f"0x{first.hex()}", second]
-        # Generic tuple - convert to list
-        return [serialize_asn1_data(v) for v in data]
-    elif isinstance(data, list):
-        return [serialize_asn1_data(v) for v in data]
-    elif isinstance(data, (bytes, bytearray)):
-        return data.hex()
-    else:
-        return data
+
+@router.post("/trace")
+async def trace_message(request: TraceRequest):
+    if request.encoding_rule.lower() != "per":
+        raise HTTPException(status_code=400, detail="Tracing currently supports PER only.")
+
+    try:
+        result = trace_service.trace(request.protocol, request.type_name, request.hex_data)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except asn1tools.ConstraintsError as exc:
+        raise HTTPException(status_code=400, detail=f"Validation Error: {str(exc)}")
+    except asn1tools.DecodeError as exc:
+        raise HTTPException(status_code=400, detail=f"Decode Error: {str(exc)}")
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Internal Error: {str(exc)}")
+
+    return {
+        "status": "success",
+        "protocol": result.protocol,
+        "type_name": result.type_name,
+        "decoded": serialize_asn1_data(result.decoded),
+        "trace": result.root.to_dict(),
+        "total_bits": result.total_bits,
+    }
+

@@ -1,6 +1,21 @@
 import { useState, useEffect } from 'react'
-import { AppShell, Group, Select, Textarea, Title, Button, Stack, Code, ScrollArea, Text, Tabs, JsonInput } from '@mantine/core'
+import {
+  AppShell,
+  Group,
+  Select,
+  Textarea,
+  Title,
+  Button,
+  Stack,
+  Code,
+  ScrollArea,
+  Text,
+  Tabs,
+  JsonInput,
+} from '@mantine/core'
 import axios from 'axios'
+import { BitInspectorPanel } from './components/trace/BitInspectorPanel'
+import type { TraceResponsePayload } from './components/trace/types'
 
 // Configure Axios base URL
 axios.defaults.baseURL = 'http://localhost:8000';
@@ -22,6 +37,9 @@ function App() {
 
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [traceData, setTraceData] = useState<TraceResponsePayload | null>(null)
+  const [traceLoading, setTraceLoading] = useState(false)
+  const [traceError, setTraceError] = useState<string | null>(null)
 
   useEffect(() => {
     axios.get('/api/asn/protocols')
@@ -56,10 +74,40 @@ function App() {
     }
   }, [selectedProtocol, selectedType])
 
+  useEffect(() => {
+    setTraceData(null)
+    setTraceError(null)
+  }, [selectedProtocol, selectedType])
+
+  const fetchTrace = async (protocol: string, typeName: string, payloadHex: string) => {
+    if (!payloadHex.trim()) {
+      setTraceData(null)
+      return
+    }
+    setTraceLoading(true)
+    setTraceError(null)
+    try {
+      const response = await axios.post<TraceResponsePayload>('/api/asn/trace', {
+        hex_data: payloadHex,
+        protocol,
+        type_name: typeName,
+        encoding_rule: 'per',
+      })
+      setTraceData(response.data)
+    } catch (err: any) {
+      setTraceError(err.response?.data?.detail || err.message)
+      setTraceData(null)
+    } finally {
+      setTraceLoading(false)
+    }
+  }
+
   const handleDecode = async () => {
     if (!selectedProtocol) return
     setError(null)
     setDecodedData(null)
+    setTraceData(null)
+    setTraceError(null)
     setLoading(true)
     try {
       const res = await axios.post('/api/asn/decode', {
@@ -69,6 +117,12 @@ function App() {
         encoding_rule: 'per'
       })
       setDecodedData(res.data)
+      const resolvedType = selectedType || res.data.decoded_type
+      if (resolvedType) {
+        await fetchTrace(selectedProtocol, resolvedType, hexData)
+      } else {
+        setTraceError("Bit tracing requires a message type.")
+      }
     } catch (err: any) {
       setError(err.response?.data?.detail || err.message)
     } finally {
@@ -184,32 +238,42 @@ function App() {
           </Tabs.List>
 
           <Tabs.Panel value="decode" pt="xs">
-            <Group align="flex-start" grow>
-              {/* Left Pane: Input */}
-              <Stack>
-                <Textarea 
-                  label="Hex Input" 
-                  placeholder="80 05 ..." 
-                  minRows={15}
-                  value={hexData}
-                  onChange={(e) => setHexData(e.currentTarget.value)}
-                  style={{ fontFamily: 'monospace' }}
-                />
-                <Button onClick={handleDecode} disabled={!selectedProtocol || loading} loading={loading}>Decode</Button>
-              </Stack>
+            <Stack gap="lg">
+              <Group align="flex-start" grow>
+                {/* Left Pane: Input */}
+                <Stack>
+                  <Textarea 
+                    label="Hex Input" 
+                    placeholder="80 05 ..." 
+                    minRows={15}
+                    value={hexData}
+                    onChange={(e) => setHexData(e.currentTarget.value)}
+                    style={{ fontFamily: 'monospace' }}
+                  />
+                  <Button onClick={handleDecode} disabled={!selectedProtocol || loading} loading={loading}>Decode</Button>
+                </Stack>
 
-              {/* Right Pane: Output */}
-              <Stack>
-                <Text fw={500}>Decoded Output</Text>
-                <ScrollArea h={400} type="always" bg="gray.1" p="sm" style={{ borderRadius: 8 }}>
-                   {decodedData ? (
-                     <Code block>{JSON.stringify(decodedData, null, 2)}</Code>
-                   ) : (
-                     <Text c="dimmed" size="sm">No data decoded yet.</Text>
-                   )}
-                </ScrollArea>
-              </Stack>
-            </Group>
+                {/* Right Pane: Output */}
+                <Stack>
+                  <Text fw={500}>Decoded Output</Text>
+                  <ScrollArea h={400} type="always" bg="gray.1" p="sm" style={{ borderRadius: 8 }}>
+                     {decodedData ? (
+                       <Code block>{JSON.stringify(decodedData, null, 2)}</Code>
+                     ) : (
+                       <Text c="dimmed" size="sm">No data decoded yet.</Text>
+                     )}
+                  </ScrollArea>
+                </Stack>
+              </Group>
+
+              <BitInspectorPanel
+                hexInput={hexData}
+                traceRoot={traceData?.trace}
+                totalBits={traceData?.total_bits}
+                loading={traceLoading}
+                error={traceError}
+              />
+            </Stack>
           </Tabs.Panel>
 
           <Tabs.Panel value="encode" pt="xs">
