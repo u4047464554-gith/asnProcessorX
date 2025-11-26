@@ -12,18 +12,186 @@ import {
   Text,
   Tabs,
   JsonInput,
+  Paper,
 } from '@mantine/core'
 import axios from 'axios'
 import { BitInspectorPanel } from './components/trace/BitInspectorPanel'
 import type { TraceResponsePayload } from './components/trace/types'
 
-const apiBase = import.meta.env.VITE_API_BASE ?? 'http://localhost:8000'
-axios.defaults.baseURL = apiBase;
+const inferDevApiBase = () => {
+  if (typeof window === 'undefined') {
+    return undefined
+  }
+  const devPorts = new Set(['5173', '5174', '5175', '5176', '5177', '5178', '5179'])
+  return devPorts.has(window.location.port) ? 'http://localhost:8010' : undefined
+}
+
+const apiBase = import.meta.env.VITE_API_BASE ?? inferDevApiBase() ?? ''
+if (apiBase) {
+  axios.defaults.baseURL = apiBase
+}
+
+type DemoEntry = unknown
+type DemoMap = Record<string, Record<string, DemoEntry>>
+
+const demoPayloads: DemoMap = {
+  simple_demo: {
+    Person: {
+      name: 'Alice',
+      age: 30,
+      isAlive: true,
+    },
+    Direction: {
+      '$choice': 'uplink',
+      value: {
+        name: 'Bob',
+        age: 25,
+        isAlive: true,
+      },
+    },
+    MyMessage: {
+      id: 7,
+      value: 'Hello World',
+    },
+    StatusCode: 42,
+  },
+  rrc_demo: {
+    RRCConnectionRequest: {
+      'ue-Identity': {
+        '$choice': 'randomValue',
+        value: ['0x0123456789', 40],
+      },
+      establishmentCause: 'mo-Signalling',
+      spare: ['0x80', 1],
+    },
+    'InitialUE-Identity': {
+      '$choice': 'randomValue',
+      value: ['0x1122334455', 40],
+    },
+    'S-TMSI': {
+      mmec: ['0xAA', 8],
+      'm-TMSI': ['0x01020304', 32],
+    },
+    EstablishmentCause: 'mo-Signalling',
+  },
+  multi_file_demo: {
+    SessionStart: {
+      subscriber: {
+        mcc: 246,
+        mnc: 1,
+        msin: '0x48454c4c4f',
+      },
+      requested: 'serviceRequest',
+      payload: '0x4578616d706c652073657373696f6e207061796c6f6164',
+    },
+    SubscriberId: {
+      mcc: 310,
+      mnc: 260,
+      msin: '0x0102030405',
+    },
+    MessageId: 'attachRequest',
+  },
+}
+
+const demoErrorPayloads: Record<string, Record<string, DemoEntry[]>> = {
+  simple_demo: {
+    Person: [
+      { name: '', age: 999, isAlive: true },
+      { name: 'A', age: -5, isAlive: true },
+      { name: 'Bob', age: 25, isAlive: true, secret: '0x001122' },
+    ],
+    Direction: [
+      { '$choice': 'invalidChoice', value: {} },
+      { '$choice': 'uplink', value: { name: '', age: 20 } },
+    ],
+    MyMessage: [
+      { id: -1, value: 12345 },
+    ],
+    StatusCode: [
+      999,
+      -3,
+    ],
+  },
+  rrc_demo: {
+    RRCConnectionRequest: [
+      {
+        'ue-Identity': {
+          '$choice': 'randomValue',
+          value: ['0x01', 4],
+        },
+        establishmentCause: 'invalidCause',
+        spare: ['0x00', 0],
+      },
+      {
+        'ue-Identity': {
+          '$choice': 's-TMSI',
+          value: { mmec: ['0xAA', 4], 'm-TMSI': ['0x01', 8] },
+        },
+        establishmentCause: 'mo-VoiceCall',
+        spare: ['0x00', 1],
+      },
+    ],
+    'InitialUE-Identity': [
+      {
+        '$choice': 'randomValue',
+        value: ['0x01', 8],
+      },
+      {
+        '$choice': 's-TMSI',
+        value: { mmec: ['0x01', 8] },
+      },
+    ],
+    'S-TMSI': [
+      {
+        mmec: ['0xFF', 4],
+        'm-TMSI': ['0x0102', 16],
+      },
+    ],
+    EstablishmentCause: [
+      'not-a-cause',
+    ],
+  },
+  multi_file_demo: {
+    SessionStart: [
+      {
+        subscriber: {
+          mcc: 90,
+          mnc: 9999,
+          msin: '0x01',
+        },
+        requested: 'invalidRequest',
+        payload: '',
+      },
+      {
+        subscriber: {
+          mcc: 246,
+          mnc: 1,
+          msin: '0x48454c4c4f',
+        },
+        requested: 'serviceRequest',
+        payload: '0x00',
+      },
+    ],
+    SubscriberId: [
+      {
+        mcc: 50,
+        mnc: -1,
+        msin: '0x01',
+      },
+    ],
+    MessageId: [
+      'notAnId',
+    ],
+  },
+}
+
+type DemoOption = { value: string; label: string }
 
 function App() {
   const [protocols, setProtocols] = useState<string[]>([])
   const [selectedProtocol, setSelectedProtocol] = useState<string | null>(null)
-  const [types, setTypes] = useState<string[]>([])
+  const [demoTypeOptions, setDemoTypeOptions] = useState<DemoOption[]>([])
+  const [selectedDemoOption, setSelectedDemoOption] = useState<string | null>(null)
   const [selectedType, setSelectedType] = useState<string | null>(null)
   const [typeDefinition, setTypeDefinition] = useState<string | null>(null)
   
@@ -48,19 +216,38 @@ function App() {
   }, [])
 
   useEffect(() => {
-    if (selectedProtocol) {
-      axios.get(`/api/asn/protocols/${selectedProtocol}/types`)
-        .then(res => {
-            setTypes(res.data)
-            setSelectedType(null) 
-            setTypeDefinition(null)
-        })
-        .catch(err => console.error(err))
-    } else {
-      setTypes([])
+    if (!selectedProtocol) {
+      setDemoTypeOptions([])
+      setSelectedDemoOption(null)
       setSelectedType(null)
       setTypeDefinition(null)
+      return
     }
+
+    axios
+      .get(`/api/asn/protocols/${selectedProtocol}/types`)
+      .then((res) => {
+        const protocolName = selectedProtocol
+        const options: DemoOption[] = []
+        res.data.forEach((typeName: string) => {
+          options.push({
+            value: `${typeName}::valid`,
+            label: `${typeName} (Valid Demo)`,
+          })
+          const errorCases = demoErrorPayloads[protocolName]?.[typeName] ?? []
+          errorCases.forEach((_, idx) => {
+            options.push({
+              value: `${typeName}::error::${idx}`,
+              label: `${typeName} (Error Demo #${idx + 1})`,
+            })
+          })
+        })
+        setDemoTypeOptions(options)
+        setSelectedDemoOption(null)
+        setSelectedType(null)
+        setTypeDefinition(null)
+      })
+      .catch((err) => console.error(err))
   }, [selectedProtocol])
 
   useEffect(() => {
@@ -164,25 +351,34 @@ function App() {
 
   const loadExample = () => {
       setError(null)
-      // Hardcoded examples for demo purposes
-      if (selectedProtocol === 'simple_demo' && selectedType === 'Person') {
-          setJsonData(JSON.stringify({
-              name: "Alice",
-              age: 30,
-              isAlive: true
-          }, null, 2))
-      } else if (selectedProtocol === 'rrc_demo' && selectedType === 'RRCConnectionRequest') {
-          setJsonData(JSON.stringify({
-            "ue-Identity": {
-                "$choice": "randomValue",
-                "value": ["0x0123456789", 40] 
-            },
-            "establishmentCause": "mo-Signalling",
-            "spare": ["0x80", 1]
-          }, null, 2))
-      } else {
-          setError("No example available for this type")
+      if (!selectedProtocol || !selectedType || !selectedDemoOption) {
+        setError("Select a protocol and demo message type first")
+        return
       }
+      const [, variant, errorIndex] = selectedDemoOption.split('::')
+      let example: DemoEntry | undefined
+      if (variant === 'error') {
+        const idx = Number(errorIndex ?? 0)
+        example = demoErrorPayloads[selectedProtocol]?.[selectedType]?.[idx]
+      } else {
+        example = demoPayloads[selectedProtocol]?.[selectedType]
+      }
+      if (!example) {
+        setError("No demo example available for this type")
+        return
+      }
+      setJsonData(JSON.stringify(example, null, 2))
+  }
+
+  const handleDemoSelect = (value: string | null) => {
+    setSelectedDemoOption(value)
+    if (!value) {
+      setSelectedType(null)
+      setJsonData('')
+      return
+    }
+    const [typeName] = value.split('::')
+    setSelectedType(typeName)
   }
 
   return (
@@ -207,15 +403,17 @@ function App() {
               searchable
             />
             <Select 
-              label="Message Type" 
-              placeholder="Select Type" 
-              data={types} 
-              value={selectedType}
-              onChange={setSelectedType}
+              label="Load Demo Message Type" 
+              placeholder="Select demo message type" 
+              data={demoTypeOptions}
+              value={selectedDemoOption}
+              onChange={handleDemoSelect}
               searchable
               disabled={!selectedProtocol}
             />
-             <Button variant="light" onClick={loadExample} disabled={!selectedType}>Load Example</Button>
+             <Button variant="light" onClick={loadExample} disabled={!selectedType}>
+               Load Example
+             </Button>
         </Group>
 
         {/* Type Definition Preview */}
@@ -229,7 +427,11 @@ function App() {
         )}
 
         {error && (
-             <Text c="red" mb="sm" style={{ whiteSpace: 'pre-wrap' }}>{error}</Text>
+             <Paper withBorder p="sm" mb="sm" bg="red.0">
+               <Text size="sm" c="red.7" style={{ whiteSpace: 'pre-wrap', fontFamily: 'inherit' }}>
+                 {error}
+               </Text>
+             </Paper>
         )}
 
         <Tabs defaultValue="decode">

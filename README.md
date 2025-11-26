@@ -22,7 +22,7 @@ pip install -r requirements.txt
 ```bash
 cd frontend
 npm install
-# Optional: point the UI at a non-default backend port
+# Optional: override backend URL (defaults to 8000; Vite dev ports auto-map to 8010)
 # PowerShell:
 #   setx VITE_API_BASE "http://localhost:8010"
 # macOS/Linux:
@@ -52,7 +52,7 @@ taskkill /PID <PID> /F
 cd frontend
 npm run dev
 ```
-Client will start at `http://localhost:5173` (or the next free port). The UI calls the backend at `VITE_API_BASE` and falls back to `http://localhost:8000` if the env var is unset.
+Client will start at `http://localhost:5173` (or the next free port). The UI calls the backend at `VITE_API_BASE`. When unset, it autodetects common Vite dev ports and talks to `http://localhost:8010`; otherwise it uses same-origin requests.
 
 ## Quality Checks
 
@@ -81,7 +81,8 @@ python -m mypy backend/
     - **Decode**: Paste Hex -> Get JSON.
     - **Encode**: Write JSON -> Get Hex.
 - **Validation**: Constraints (Size, Range) are enforced. Errors are displayed in the UI.
-- **Example Loader**: Auto-fill valid JSON for testing.
+- **Example Loader**: Auto-fill valid JSON for testing (choose `<Type> (Valid Demo)`).
+- **Error Demos**: Pick the `<Type> (Error Demo)` option to insert a payload that violates constraints and see validation errors.
 
 ## ASN DAO Metadata API
 - `GET /api/asn/protocols/metadata`: returns the precompiled ASN_DAO for every protocol, including the list of source files (relative to `asn_specs/`) and available type names.
@@ -99,5 +100,23 @@ python -m mypy backend/
   "name": "Alice",
   "age": 30,
   "isAlive": true
+}
+```
+
+**Protocol**: `multi_file_demo`
+**Type**: `SessionStart`
+
+**Valid Hex**: `0092000148454c4c4f964578616d706c652073657373696f6e207061796c6f6164`
+
+**Valid JSON**:
+```json
+{
+  "subscriber": {
+    "mcc": 246,
+    "mnc": 1,
+    "msin": "0x48454c4c4f"
+  },
+  "requested": "serviceRequest",
+  "payload": "0x4578616d706c652073657373696f6e207061796c6f6164"
 }
 ```
