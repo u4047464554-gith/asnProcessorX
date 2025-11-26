@@ -1,0 +1,26 @@
+RRCDemo DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+    -- Simplified RRC Connection Request
+    RRCConnectionRequest ::= SEQUENCE {
+        ue-Identity InitialUE-Identity,
+        establishmentCause EstablishmentCause,
+        spare BIT STRING (SIZE (1))
+    }
+
+    InitialUE-Identity ::= CHOICE {
+        s-TMSI S-TMSI,
+        randomValue BIT STRING (SIZE (40))
+    }
+
+    S-TMSI ::= SEQUENCE {
+        mmec BIT STRING (SIZE (8)),
+        m-TMSI BIT STRING (SIZE (32))
+    }
+
+    EstablishmentCause ::= ENUMERATED {
+        emergency, highPriorityAccess, mt-Access, mo-Signalling, 
+        mo-Data, delayTolerantAccess, mo-VoiceCall, spare1
+    }
+
+END
+

@@ -1,0 +1,7 @@
+[tool.mypy]
+ignore_missing_imports = true
+explicit_package_bases = true
+
+[tool.ruff]
+line-length = 120
+

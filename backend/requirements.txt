@@ -1,0 +1,12 @@
+fastapi
+uvicorn
+asn1tools
+pydantic
+python-multipart
+pytest
+watchdog
+httpx
+pytest-cov
+ruff
+mypy
+types-requests

@@ -1,0 +1,92 @@
+# ASN.1 Stream Processor - MVP
+
+## Prerequisites
+- Python 3.10+
+- Node.js 18+
+
+## Setup
+
+### 1. Backend
+```bash
+cd backend
+python -m venv .venv
+# Windows:
+.venv\Scripts\activate
+# Linux/Mac:
+source .venv/bin/activate
+
+pip install -r requirements.txt
+```
+
+### 2. Frontend
+```bash
+cd frontend
+npm install
+```
+
+## Running the App
+
+### 1. Start Backend
+```bash
+# From project root - uses port conflict detection
+python backend/run_server.py
+```
+Server will start at `http://localhost:8000`.
+
+**Note**: If you get a "Port 8000 already in use" error, kill the old process:
+```bash
+# Find the process
+netstat -ano | findstr :8000
+# Kill it (replace <PID> with actual number)
+taskkill /PID <PID> /F
+```
+
+### 2. Start Frontend
+```bash
+cd frontend
+npm run dev
+```
+Client will start at `http://localhost:5173`.
+
+## Quality Checks
+
+Run these commands from the project root:
+
+### Tests & Coverage
+```bash
+python -m pytest --cov=backend/routers --cov=backend/core backend/tests/
+```
+
+### Linting (Ruff)
+```bash
+python -m ruff check backend/
+```
+
+### Type Checking (MyPy)
+```bash
+python -m mypy backend/
+```
+
+## Features
+- **Dynamic Schema Loading**: Place `.asn` files in `asn_specs/`.
+- **Protocols**: Select between `simple_demo` and `rrc_demo`.
+- **PER Encoding/Decoding**:
+    - **Decode**: Paste Hex -> Get JSON.
+    - **Encode**: Write JSON -> Get Hex.
+- **Validation**: Constraints (Size, Range) are enforced. Errors are displayed in the UI.
+- **Example Loader**: Auto-fill valid JSON for testing.
+
+## Example Data
+**Protocol**: `simple_demo`
+**Type**: `Person`
+
+**Valid Hex**: `8200416c6963653c` (Alice, 30)
+
+**Valid JSON**:
+```json
+{
+  "name": "Alice",
+  "age": 30,
+  "isAlive": true
+}
+```

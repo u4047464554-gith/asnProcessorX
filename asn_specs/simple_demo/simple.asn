@@ -1,0 +1,30 @@
+SimpleProtocol DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+    -- A simple parameterized type
+    P-Type {T} ::= SEQUENCE {
+        id INTEGER,
+        value T
+    }
+
+    -- Using the parameterized type
+    MyMessage ::= P-Type { PrintableString }
+
+    -- A sequence with default values and optional fields
+    Person ::= SEQUENCE {
+        name IA5String (SIZE(1..64)),
+        age INTEGER (0..120) DEFAULT 18,
+        isAlive BOOLEAN DEFAULT TRUE,
+        secret OCTET STRING OPTIONAL
+    }
+
+    -- Constrained Integer for testing
+    StatusCode ::= INTEGER (0..255)
+
+    -- Choice type (Uplink/Downlink simulation)
+    Direction ::= CHOICE {
+        uplink [0] Person,
+        downlink [1] MyMessage
+    }
+
+END
+
