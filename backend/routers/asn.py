@@ -1,6 +1,8 @@
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, List
+import os
 
 from backend.core.asn1_runtime import asn1tools
 
@@ -8,10 +10,12 @@ from backend.core.manager import manager
 from backend.core.serialization import deserialize_asn1_data, serialize_asn1_data
 from backend.core.tracer import TraceService
 from backend.core.type_tree import build_type_tree
+from backend.core.codegen import CodegenService
 
 
 router = APIRouter()
 trace_service = TraceService(manager)
+codegen_service = CodegenService(manager)
 
 class DecodeRequest(BaseModel):
     hex_data: str
@@ -22,7 +26,7 @@ class DecodeRequest(BaseModel):
 class EncodeRequest(BaseModel):
     protocol: str
     type_name: str
-    data: Dict[str, Any]
+    data: Any
     encoding_rule: str = "per"
 
 
@@ -31,6 +35,11 @@ class TraceRequest(BaseModel):
     protocol: str
     type_name: str
     encoding_rule: str = "per"
+
+class CodegenRequest(BaseModel):
+    protocol: str
+    types: List[str] = []
+    options: Optional[Dict[str, Any]] = None
 
 @router.post("/encode")
 async def encode_message(request: EncodeRequest):
@@ -223,3 +232,22 @@ async def trace_message(request: TraceRequest):
         "total_bits": result.total_bits,
     }
 
+@router.post("/codegen")
+async def generate_code(request: CodegenRequest):
+    try:
+        zip_path = codegen_service.generate_c_stubs(
+            protocol=request.protocol,
+            types=request.types,
+            options=request.options
+        )
+        filename = os.path.basename(zip_path)
+        return FileResponse(
+            path=zip_path, 
+            filename=filename, 
+            media_type='application/zip',
+            background=None # TODO: Add background task to delete file
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except RuntimeError as e:
+         raise HTTPException(status_code=500, detail=str(e))

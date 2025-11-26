@@ -55,8 +55,12 @@ export const BitInspectorPanel = ({
       )}
 
       {traceRoot ? (
-        <Group align="flex-start" gap="md" grow wrap="wrap">
-          <Paper withBorder p="sm" style={{ flex: 1, minWidth: 280 }}>
+        <Group align="stretch" gap="md" grow wrap="wrap">
+          <Paper
+            withBorder
+            p="sm"
+            style={{ flex: '3 1 520px', minWidth: 360, maxWidth: '100%' }}
+          >
             <Text fw={500} size="sm" mb="xs">
               Field Map
             </Text>
@@ -66,7 +70,11 @@ export const BitInspectorPanel = ({
               selectedRange={selectedRange}
             />
           </Paper>
-          <Paper withBorder p="sm" style={{ flex: 1, minWidth: 320 }}>
+          <Paper
+            withBorder
+            p="sm"
+            style={{ flex: '2 1 360px', minWidth: 300, maxWidth: '100%' }}
+          >
             <Text fw={500} size="sm" mb="xs">
               Hex View
             </Text>

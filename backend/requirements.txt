@@ -10,3 +10,4 @@ pytest-cov
 ruff
 mypy
 types-requests
+pyinstaller

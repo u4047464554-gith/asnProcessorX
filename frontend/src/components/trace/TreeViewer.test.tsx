@@ -30,16 +30,16 @@ const sampleTree: TraceNode = {
 describe('TreeViewer', () => {
   it('renders nodes and child values', () => {
     renderWithMantine(<TreeViewer root={sampleTree} />)
-    expect(screen.getByText(/Person/)).toBeInTheDocument()
-    expect(screen.getByText(/name/)).toBeInTheDocument()
-    expect(screen.getByText(/age/)).toBeInTheDocument()
+    expect(screen.getByText(/^Person$/)).toBeInTheDocument()
+    expect(screen.getByText(/^name$/)).toBeInTheDocument()
+    expect(screen.getByText(/^age$/)).toBeInTheDocument()
   })
 
   it('invokes onSelect when node clicked', () => {
     const handler = vi.fn()
     renderWithMantine(<TreeViewer root={sampleTree} onSelect={handler} />)
 
-    const nameNode = screen.getByText(/name/i)
+    const nameNode = screen.getByText(/^name$/i)
     fireEvent.click(nameNode)
     expect(handler).toHaveBeenCalledTimes(1)
     expect(handler.mock.calls[0][0]).toEqual({ start: 0, end: 40, length: 40 })
@@ -49,9 +49,9 @@ describe('TreeViewer', () => {
     renderWithMantine(<TreeViewer root={sampleTree} />)
     const toggleButton = screen.getByLabelText(/collapse node/i)
     fireEvent.click(toggleButton)
-    expect(screen.queryByText(/name/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/^name$/i)).not.toBeInTheDocument()
     fireEvent.click(screen.getByLabelText(/expand node/i))
-    expect(screen.getByText(/name/)).toBeInTheDocument()
+    expect(screen.getByText(/^name$/i)).toBeInTheDocument()
   })
 })
 

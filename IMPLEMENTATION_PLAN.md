@@ -87,6 +87,14 @@
 - [x] Example loader button
 - [x] Error display
 
+### Phase 2.5: C Code Generation (New) ✅
+- [x] Vendor `asn1c` sources into `sources/asn1c/repo`
+- [x] Create `scripts/build_asn1c.py` build script
+- [x] Implement `CodegenService` in backend
+- [x] Add `POST /api/asn/codegen` endpoint
+- [x] Add UI Modal for generating and downloading C stubs
+- [x] Add backend unit tests for codegen service
+
 ---
 
 ## 4. Next Steps (Prioritized)
@@ -143,11 +151,13 @@
 │   ├── run_server.py           # Server launcher with port check ✅
 │   ├── core/
 │   │   ├── manager.py          # AsnManager - schema loading ✅
+│   │   ├── codegen.py          # C Code Generator Service ✅
 │   │   └── tracer.py           # Bit-level tracking (TODO)
 │   ├── routers/
 │   │   └── asn.py              # API endpoints ✅
 │   ├── tests/
 │   │   ├── test_api.py         # API tests ✅
+│   │   ├── test_codegen.py     # Codegen tests ✅
 │   │   └── test_rrc.py         # RRC-specific tests ✅
 │   └── requirements.txt        # Python deps ✅
 ├── frontend/
@@ -160,6 +170,13 @@
 ├── asn_specs/
 │   ├── simple_demo/simple.asn  # Demo protocol ✅
 │   └── rrc_demo/rrc.asn        # 3GPP RRC sample ✅
+├── sources/
+│   ├── asn1c/                  # Vendored ASN.1 Compiler ✅
+│   │   ├── repo/               # Upstream source
+│   │   ├── bin/                # Compiled binary
+│   │   └── README.md
+├── scripts/
+│   └── build_asn1c.py          # Build helper script ✅
 ├── pyproject.toml              # Python tool config ✅
 └── README.md                   # Setup instructions ✅
 ```

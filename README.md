@@ -3,6 +3,10 @@
 ## Prerequisites
 - Python 3.10+
 - Node.js 18+
+- **Build Tools (for C Codegen)**:
+    - `make`, `gcc` (or compatible C compiler)
+    - `flex`, `bison` (for building `asn1c` from source)
+    - Windows users: MSYS2, Git Bash, or WSL is recommended to provide the Unix-like environment for `asn1c`.
 
 ## Setup
 
@@ -18,7 +22,15 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 2. Frontend
+### 2. Build ASN1C (Optional but required for Codegen)
+The project vendors `asn1c` in `sources/asn1c`. To enable C code generation features:
+
+```bash
+python scripts/build_asn1c.py
+```
+This will build the `asn1c` binary and place it in `sources/asn1c/bin/`.
+
+### 3. Frontend
 ```bash
 cd frontend
 npm install
@@ -84,6 +96,7 @@ python -m mypy backend/
 - **Example Loader**: Auto-fill valid JSON for testing (choose `<Type> (Valid Demo)`).
 - **Error Demos**: Pick the `<Type> (Error Demo)` option to insert a payload that violates constraints and see validation errors.
 - **Definition Tree**: Expand the collapsible definition panel to inspect nested ASN.1 constraints when needed.
+- **C Code Generation**: Generate C stubs (`asn1c` based) for selected protocols directly from the UI.
 
 ## ASN DAO Metadata API
 - `GET /api/asn/protocols/metadata`: returns the precompiled ASN_DAO for every protocol, including the list of source files (relative to `asn_specs/`) and available type names.

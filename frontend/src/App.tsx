@@ -7,188 +7,61 @@ import {
   Title,
   Button,
   Stack,
-  Code,
-  ScrollArea,
   Text,
-  Tabs,
   JsonInput,
   Paper,
   Collapse,
+  Modal,
 } from '@mantine/core'
 import axios from 'axios'
 import { BitInspectorPanel } from './components/trace/BitInspectorPanel'
 import type { TraceResponsePayload } from './components/trace/types'
 import { DefinitionTree } from './components/definition/DefinitionTree'
 import type { DefinitionNode } from './components/definition/types'
+import type { DemoEntry } from './data/demos'
+import { demoPayloads, demoErrorPayloads } from './data/demos'
 
-const inferDevApiBase = () => {
-  if (typeof window === 'undefined') {
-    return undefined
+const resolveApiBase = () => {
+  if (import.meta.env.VITE_API_BASE) {
+    return import.meta.env.VITE_API_BASE as string
   }
-  const devPorts = new Set(['5173', '5174', '5175', '5176', '5177', '5178', '5179'])
-  return devPorts.has(window.location.port) ? 'http://localhost:8010' : undefined
+  if (import.meta.env.DEV) {
+    return 'http://localhost:8010'
+  }
+  return undefined
 }
 
-const apiBase = import.meta.env.VITE_API_BASE ?? inferDevApiBase() ?? ''
+const apiBase = resolveApiBase()
 if (apiBase) {
   axios.defaults.baseURL = apiBase
 }
 
-type DemoEntry = unknown
-type DemoMap = Record<string, Record<string, DemoEntry>>
-
-const demoPayloads: DemoMap = {
-  simple_demo: {
-    Person: {
-      name: 'Alice',
-      age: 30,
-      isAlive: true,
-    },
-    Direction: {
-      '$choice': 'uplink',
-      value: {
-        name: 'Bob',
-        age: 25,
-        isAlive: true,
-      },
-    },
-    MyMessage: {
-      id: 7,
-      value: 'Hello World',
-    },
-    StatusCode: 42,
-  },
-  rrc_demo: {
-    RRCConnectionRequest: {
-      'ue-Identity': {
-        '$choice': 'randomValue',
-        value: ['0x0123456789', 40],
-      },
-      establishmentCause: 'mo-Signalling',
-      spare: ['0x80', 1],
-    },
-    'InitialUE-Identity': {
-      '$choice': 'randomValue',
-      value: ['0x1122334455', 40],
-    },
-    'S-TMSI': {
-      mmec: ['0xAA', 8],
-      'm-TMSI': ['0x01020304', 32],
-    },
-    EstablishmentCause: 'mo-Signalling',
-  },
-  multi_file_demo: {
-    SessionStart: {
-      subscriber: {
-        mcc: 246,
-        mnc: 1,
-        msin: '0x48454c4c4f',
-      },
-      requested: 'serviceRequest',
-      payload: '0x4578616d706c652073657373696f6e207061796c6f6164',
-    },
-    SubscriberId: {
-      mcc: 310,
-      mnc: 260,
-      msin: '0x0102030405',
-    },
-    MessageId: 'attachRequest',
-  },
-}
-
-const demoErrorPayloads: Record<string, Record<string, DemoEntry[]>> = {
-  simple_demo: {
-    Person: [
-      { name: '', age: 999, isAlive: true },
-      { name: 'A', age: -5, isAlive: true },
-      { name: 'Bob', age: 25, isAlive: true, secret: '0x001122' },
-    ],
-    Direction: [
-      { '$choice': 'invalidChoice', value: {} },
-      { '$choice': 'uplink', value: { name: '', age: 20 } },
-    ],
-    MyMessage: [
-      { id: -1, value: 12345 },
-    ],
-    StatusCode: [
-      999,
-      -3,
-    ],
-  },
-  rrc_demo: {
-    RRCConnectionRequest: [
-      {
-        'ue-Identity': {
-          '$choice': 'randomValue',
-          value: ['0x01', 4],
-        },
-        establishmentCause: 'invalidCause',
-        spare: ['0x00', 0],
-      },
-      {
-        'ue-Identity': {
-          '$choice': 's-TMSI',
-          value: { mmec: ['0xAA', 4], 'm-TMSI': ['0x01', 8] },
-        },
-        establishmentCause: 'mo-VoiceCall',
-        spare: ['0x00', 1],
-      },
-    ],
-    'InitialUE-Identity': [
-      {
-        '$choice': 'randomValue',
-        value: ['0x01', 8],
-      },
-      {
-        '$choice': 's-TMSI',
-        value: { mmec: ['0x01', 8] },
-      },
-    ],
-    'S-TMSI': [
-      {
-        mmec: ['0xFF', 4],
-        'm-TMSI': ['0x0102', 16],
-      },
-    ],
-    EstablishmentCause: [
-      'not-a-cause',
-    ],
-  },
-  multi_file_demo: {
-    SessionStart: [
-      {
-        subscriber: {
-          mcc: 90,
-          mnc: 9999,
-          msin: '0x01',
-        },
-        requested: 'invalidRequest',
-        payload: '',
-      },
-      {
-        subscriber: {
-          mcc: 246,
-          mnc: 1,
-          msin: '0x48454c4c4f',
-        },
-        requested: 'serviceRequest',
-        payload: '0x00',
-      },
-    ],
-    SubscriberId: [
-      {
-        mcc: 50,
-        mnc: -1,
-        msin: '0x01',
-      },
-    ],
-    MessageId: [
-      'notAnId',
-    ],
-  },
-}
-
 type DemoOption = { value: string; label: string }
+
+const formatErrorMessage = (err: any) => {
+  const detail = err?.response?.data?.detail
+  if (typeof detail === 'string') {
+    return detail
+  }
+  if (Array.isArray(detail)) {
+    return detail
+      .map((entry) => {
+        if (typeof entry === 'string') {
+          return entry
+        }
+        if (entry && typeof entry === 'object') {
+          const location = Array.isArray(entry.loc) ? entry.loc.join('.') : entry.loc
+          return `${entry.type || 'Error'} at ${location}: ${entry.msg || entry.message || ''}`.trim()
+        }
+        return JSON.stringify(entry)
+      })
+      .join('\n')
+  }
+  if (detail && typeof detail === 'object') {
+    return JSON.stringify(detail)
+  }
+  return err?.message || 'Unknown error'
+}
 
 function App() {
   const [protocols, setProtocols] = useState<string[]>([])
@@ -196,15 +69,12 @@ function App() {
   const [demoTypeOptions, setDemoTypeOptions] = useState<DemoOption[]>([])
   const [selectedDemoOption, setSelectedDemoOption] = useState<string | null>(null)
   const [selectedType, setSelectedType] = useState<string | null>(null)
-  const [typeDefinition, setTypeDefinition] = useState<string | null>(null)
   
   // Decode State
   const [hexData, setHexData] = useState('')
-  const [decodedData, setDecodedData] = useState<any>(null)
   
   // Encode State
   const [jsonData, setJsonData] = useState('')
-  const [encodedHex, setEncodedHex] = useState<string | null>(null)
 
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -213,6 +83,11 @@ function App() {
   const [traceError, setTraceError] = useState<string | null>(null)
   const [definitionTree, setDefinitionTree] = useState<DefinitionNode | null>(null)
   const [definitionOpen, setDefinitionOpen] = useState(false)
+
+  // Codegen State
+  const [codegenModalOpen, setCodegenModalOpen] = useState(false)
+  const [codegenLoading, setCodegenLoading] = useState(false)
+  const [codegenError, setCodegenError] = useState<string | null>(null)
 
   useEffect(() => {
     axios.get('/api/asn/protocols')
@@ -225,7 +100,6 @@ function App() {
       setDemoTypeOptions([])
       setSelectedDemoOption(null)
       setSelectedType(null)
-      setTypeDefinition(null)
       return
     }
 
@@ -235,10 +109,13 @@ function App() {
         const protocolName = selectedProtocol
         const options: DemoOption[] = []
         res.data.forEach((typeName: string) => {
-          options.push({
-            value: `${typeName}::valid`,
-            label: `${typeName} (Valid Demo)`,
-          })
+          const validExample = demoPayloads[protocolName]?.[typeName]
+          if (validExample) {
+            options.push({
+              value: `${typeName}::valid`,
+              label: `${typeName} (Valid Demo)`,
+            })
+          }
           const errorCases = demoErrorPayloads[protocolName]?.[typeName] ?? []
           errorCases.forEach((_, idx) => {
             options.push({
@@ -250,7 +127,6 @@ function App() {
         setDemoTypeOptions(options)
         setSelectedDemoOption(null)
         setSelectedType(null)
-        setTypeDefinition(null)
       })
       .catch((err) => console.error(err))
   }, [selectedProtocol])
@@ -308,7 +184,6 @@ function App() {
   const handleDecode = async () => {
     if (!selectedProtocol) return
     setError(null)
-    setDecodedData(null)
     setTraceData(null)
     setTraceError(null)
     setLoading(true)
@@ -319,7 +194,8 @@ function App() {
         type_name: selectedType || undefined, // Optional
         encoding_rule: 'per'
       })
-      setDecodedData(res.data)
+      const formattedJson = JSON.stringify(res.data.data ?? res.data, null, 2)
+      setJsonData(formattedJson)
       const resolvedType = selectedType || res.data.decoded_type
       if (resolvedType) {
         await fetchTrace(selectedProtocol, resolvedType, hexData)
@@ -327,7 +203,7 @@ function App() {
         setTraceError("Bit tracing requires a message type.")
       }
     } catch (err: any) {
-      setError(err.response?.data?.detail || err.message)
+      setError(formatErrorMessage(err))
     } finally {
         setLoading(false)
     }
@@ -339,7 +215,6 @@ function App() {
         return
     }
     setError(null)
-    setEncodedHex(null)
     setLoading(true)
     try {
       let parsedJson;
@@ -357,9 +232,11 @@ function App() {
         type_name: selectedType,
         encoding_rule: 'per'
       })
-      setEncodedHex(res.data.hex_data)
+      const newHex = res.data.hex_data
+      setHexData(newHex)
+      await fetchTrace(selectedProtocol, selectedType, newHex)
     } catch (err: any) {
-      setError(err.response?.data?.detail || err.message)
+      setError(formatErrorMessage(err))
     } finally {
         setLoading(false)
     }
@@ -383,7 +260,15 @@ function App() {
         setError("No demo example available for this type")
         return
       }
-      setJsonData(JSON.stringify(example, null, 2))
+      if (variant === 'error' && typeof example !== 'object') {
+        setError("Error demos must be structured objects for JSON conversion")
+        return
+      }
+      if (variant === 'error') {
+        setJsonData(JSON.stringify(example, null, 2))
+      } else {
+        setJsonData(JSON.stringify(example, null, 2))
+      }
   }
 
   const handleDemoSelect = (value: string | null) => {
@@ -397,14 +282,63 @@ function App() {
     setSelectedType(typeName)
   }
 
+  const handleCodegen = async () => {
+      if (!selectedProtocol) return;
+      setCodegenLoading(true)
+      setCodegenError(null)
+      try {
+          const res = await axios.post('/api/asn/codegen', {
+              protocol: selectedProtocol,
+              types: selectedType ? [selectedType] : [],
+              options: { 'compound-names': true }
+          }, {
+              responseType: 'blob'
+          })
+
+          // Create download link
+          const url = window.URL.createObjectURL(new Blob([res.data]));
+          const link = document.createElement('a');
+          link.href = url;
+          link.setAttribute('download', `${selectedProtocol}_c_stubs.zip`);
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+          setCodegenModalOpen(false)
+
+      } catch (err: any) {
+          if (err.response?.data instanceof Blob) {
+               // Parse blob error
+               const text = await err.response.data.text()
+               try {
+                   const json = JSON.parse(text)
+                   setCodegenError(json.detail || 'Generation failed')
+               } catch {
+                   setCodegenError(text)
+               }
+          } else {
+              setCodegenError(formatErrorMessage(err))
+          }
+      } finally {
+          setCodegenLoading(false)
+      }
+  }
+
   return (
     <AppShell
       header={{ height: 60 }}
       padding="md"
     >
       <AppShell.Header>
-        <Group h="100%" px="md">
+        <Group h="100%" px="md" justify="space-between">
           <Title order={3}>ASN.1 Processor</Title>
+          <Button 
+            variant="outline" 
+            size="xs" 
+            disabled={!selectedProtocol}
+            onClick={() => setCodegenModalOpen(true)}
+          >
+            Generate C Stubs
+          </Button>
         </Group>
       </AppShell.Header>
 
@@ -418,7 +352,7 @@ function App() {
               onChange={setSelectedProtocol}
               searchable
             />
-            <Select 
+            <Select
               label="Load Demo Message Type" 
               placeholder="Select demo message type" 
               data={demoTypeOptions}
@@ -454,79 +388,75 @@ function App() {
              </Paper>
         )}
 
-        <Tabs defaultValue="decode">
-          <Tabs.List>
-            <Tabs.Tab value="decode">Decode (Hex &rarr; JSON)</Tabs.Tab>
-            <Tabs.Tab value="encode">Encode (JSON &rarr; Hex)</Tabs.Tab>
-          </Tabs.List>
+        <Stack gap="xl">
+          <Paper withBorder p="md">
+            <Stack gap="md">
+              <Text fw={600}>Hex ↔ JSON</Text>
+              <Textarea
+                label="Hex"
+                placeholder="80 05 ..."
+                minRows={10}
+                value={hexData}
+                onChange={(e) => setHexData(e.currentTarget.value)}
+                style={{ fontFamily: 'monospace' }}
+              />
+              <Group justify="center">
+                <Button onClick={handleDecode} disabled={!selectedProtocol || loading} loading={loading}>
+                  Hex → JSON
+                </Button>
+                <Button
+                  onClick={handleEncode}
+                  disabled={!selectedProtocol || !selectedType || loading}
+                  loading={loading}
+                  variant="light"
+                >
+                  JSON → Hex
+                </Button>
+              </Group>
+              <JsonInput
+                label="JSON Input"
+                placeholder="{ ... }"
+                validationError="Invalid JSON"
+                formatOnBlur
+                autosize
+                minRows={10}
+                value={jsonData}
+                onChange={setJsonData}
+              />
+              <BitInspectorPanel
+                hexInput={hexData}
+                traceRoot={traceData?.trace}
+                totalBits={traceData?.total_bits}
+                loading={traceLoading}
+                error={traceError}
+              />
+            </Stack>
+          </Paper>
+        </Stack>
 
-          <Tabs.Panel value="decode" pt="xs">
-            <Group align="flex-start" grow>
-              {/* Left Pane: Input + Bit Inspector */}
-              <Stack style={{ flex: 1 }}>
-                <Textarea 
-                  label="Hex Input" 
-                  placeholder="80 05 ..." 
-                  minRows={15}
-                  value={hexData}
-                  onChange={(e) => setHexData(e.currentTarget.value)}
-                  style={{ fontFamily: 'monospace' }}
-                />
-                <Button onClick={handleDecode} disabled={!selectedProtocol || loading} loading={loading}>Decode</Button>
-                <BitInspectorPanel
-                  hexInput={hexData}
-                  traceRoot={traceData?.trace}
-                  totalBits={traceData?.total_bits}
-                  loading={traceLoading}
-                  error={traceError}
-                />
-              </Stack>
+        <Modal 
+            opened={codegenModalOpen} 
+            onClose={() => setCodegenModalOpen(false)} 
+            title={`Generate C Stubs for ${selectedProtocol}`}
+        >
+            <Stack>
+                <Text size="sm">
+                    This will generate C encoder/decoder stubs (PER) for <b>{selectedProtocol}</b> using <code>asn1c</code>.
+                </Text>
+                <Text size="xs" c="dimmed">
+                    Note: This uses the vendored asn1c compiler. Ensure your target platform is compatible with the generated C code.
+                </Text>
+                
+                {codegenError && (
+                     <Text c="red" size="sm">{codegenError}</Text>
+                )}
 
-              {/* Right Pane: Output */}
-              <Stack style={{ flex: 1 }}>
-                <Text fw={500}>Decoded Output</Text>
-                <ScrollArea h={400} type="always" bg="gray.1" p="sm" style={{ borderRadius: 8 }}>
-                   {decodedData ? (
-                     <Code block>{JSON.stringify(decodedData, null, 2)}</Code>
-                   ) : (
-                     <Text c="dimmed" size="sm">No data decoded yet.</Text>
-                   )}
-                </ScrollArea>
-              </Stack>
-            </Group>
-          </Tabs.Panel>
-
-          <Tabs.Panel value="encode" pt="xs">
-            <Group align="flex-start" grow>
-              {/* Left Pane: Input */}
-              <Stack>
-                <JsonInput
-                  label="JSON Input"
-                  placeholder="{ ... }"
-                  validationError="Invalid JSON"
-                  formatOnBlur
-                  autosize
-                  minRows={15}
-                  value={jsonData}
-                  onChange={setJsonData}
-                />
-                <Button onClick={handleEncode} disabled={!selectedProtocol || !selectedType || loading} loading={loading}>Encode</Button>
-              </Stack>
-
-              {/* Right Pane: Output */}
-              <Stack>
-                <Text fw={500}>Encoded Hex</Text>
-                <ScrollArea h={400} type="always" bg="gray.1" p="sm" style={{ borderRadius: 8 }}>
-                   {encodedHex ? (
-                     <Code block style={{ wordBreak: 'break-all' }}>{encodedHex}</Code>
-                   ) : (
-                     <Text c="dimmed" size="sm">No hex generated yet.</Text>
-                   )}
-                </ScrollArea>
-              </Stack>
-            </Group>
-          </Tabs.Panel>
-        </Tabs>
+                <Group justify="flex-end" mt="md">
+                    <Button variant="subtle" onClick={() => setCodegenModalOpen(false)}>Cancel</Button>
+                    <Button onClick={handleCodegen} loading={codegenLoading}>Generate & Download</Button>
+                </Group>
+            </Stack>
+        </Modal>
       </AppShell.Main>
     </AppShell>
   )

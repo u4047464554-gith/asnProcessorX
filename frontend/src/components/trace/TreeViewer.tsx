@@ -12,12 +12,17 @@ interface TreeViewerProps {
 const formatValue = (value: unknown): string => {
   if (value === null || value === undefined) return ''
   if (typeof value === 'string') {
-    return value.length > 32 ? `${value.slice(0, 29)}…` : value
+    return value.length > 64 ? `${value.slice(0, 61)}…` : value
   }
-  if (typeof value === 'object') {
-    return Array.isArray(value) ? '[…]' : '{…}'
+  try {
+    const serialized = JSON.stringify(value)
+    if (!serialized) {
+      return ''
+    }
+    return serialized.length > 96 ? `${serialized.slice(0, 93)}…` : serialized
+  } catch {
+    return String(value)
   }
-  return String(value)
 }
 
 const rangesEqual = (a?: BitRange | null, b?: BitRange | null) => {
