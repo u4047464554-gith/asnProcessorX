@@ -22,6 +22,12 @@ pip install -r requirements.txt
 ```bash
 cd frontend
 npm install
+# Optional: point the UI at a non-default backend port
+# PowerShell:
+#   setx VITE_API_BASE "http://localhost:8010"
+# macOS/Linux:
+#   export VITE_API_BASE="http://localhost:8010"
+# Restart your terminal so Vite picks it up.
 ```
 
 ## Running the App
@@ -46,7 +52,7 @@ taskkill /PID <PID> /F
 cd frontend
 npm run dev
 ```
-Client will start at `http://localhost:5173`.
+Client will start at `http://localhost:5173` (or the next free port). The UI calls the backend at `VITE_API_BASE` and falls back to `http://localhost:8000` if the env var is unset.
 
 ## Quality Checks
 

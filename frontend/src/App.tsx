@@ -17,8 +17,8 @@ import axios from 'axios'
 import { BitInspectorPanel } from './components/trace/BitInspectorPanel'
 import type { TraceResponsePayload } from './components/trace/types'
 
-// Configure Axios base URL
-axios.defaults.baseURL = 'http://localhost:8000';
+const apiBase = import.meta.env.VITE_API_BASE ?? 'http://localhost:8000'
+axios.defaults.baseURL = apiBase;
 
 function App() {
   const [protocols, setProtocols] = useState<string[]>([])
@@ -238,42 +238,39 @@ function App() {
           </Tabs.List>
 
           <Tabs.Panel value="decode" pt="xs">
-            <Stack gap="lg">
-              <Group align="flex-start" grow>
-                {/* Left Pane: Input */}
-                <Stack>
-                  <Textarea 
-                    label="Hex Input" 
-                    placeholder="80 05 ..." 
-                    minRows={15}
-                    value={hexData}
-                    onChange={(e) => setHexData(e.currentTarget.value)}
-                    style={{ fontFamily: 'monospace' }}
-                  />
-                  <Button onClick={handleDecode} disabled={!selectedProtocol || loading} loading={loading}>Decode</Button>
-                </Stack>
+            <Group align="flex-start" grow>
+              {/* Left Pane: Input + Bit Inspector */}
+              <Stack style={{ flex: 1 }}>
+                <Textarea 
+                  label="Hex Input" 
+                  placeholder="80 05 ..." 
+                  minRows={15}
+                  value={hexData}
+                  onChange={(e) => setHexData(e.currentTarget.value)}
+                  style={{ fontFamily: 'monospace' }}
+                />
+                <Button onClick={handleDecode} disabled={!selectedProtocol || loading} loading={loading}>Decode</Button>
+                <BitInspectorPanel
+                  hexInput={hexData}
+                  traceRoot={traceData?.trace}
+                  totalBits={traceData?.total_bits}
+                  loading={traceLoading}
+                  error={traceError}
+                />
+              </Stack>
 
-                {/* Right Pane: Output */}
-                <Stack>
-                  <Text fw={500}>Decoded Output</Text>
-                  <ScrollArea h={400} type="always" bg="gray.1" p="sm" style={{ borderRadius: 8 }}>
-                     {decodedData ? (
-                       <Code block>{JSON.stringify(decodedData, null, 2)}</Code>
-                     ) : (
-                       <Text c="dimmed" size="sm">No data decoded yet.</Text>
-                     )}
-                  </ScrollArea>
-                </Stack>
-              </Group>
-
-              <BitInspectorPanel
-                hexInput={hexData}
-                traceRoot={traceData?.trace}
-                totalBits={traceData?.total_bits}
-                loading={traceLoading}
-                error={traceError}
-              />
-            </Stack>
+              {/* Right Pane: Output */}
+              <Stack style={{ flex: 1 }}>
+                <Text fw={500}>Decoded Output</Text>
+                <ScrollArea h={400} type="always" bg="gray.1" p="sm" style={{ borderRadius: 8 }}>
+                   {decodedData ? (
+                     <Code block>{JSON.stringify(decodedData, null, 2)}</Code>
+                   ) : (
+                     <Text c="dimmed" size="sm">No data decoded yet.</Text>
+                   )}
+                </ScrollArea>
+              </Stack>
+            </Group>
           </Tabs.Panel>
 
           <Tabs.Panel value="encode" pt="xs">
