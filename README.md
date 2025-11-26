@@ -69,12 +69,17 @@ python -m mypy backend/
 
 ## Features
 - **Dynamic Schema Loading**: Place `.asn` files in `asn_specs/`.
-- **Protocols**: Select between `simple_demo` and `rrc_demo`.
+- **Multi-File Protocols**: Each protocol folder may contain several `.asn` sources that import from one another. The `multi_file_demo` example shows this by splitting shared types and the top-level message into `common.asn` and `main.asn`.
+- **Protocols**: Select between `simple_demo`, `rrc_demo`, and `multi_file_demo`.
 - **PER Encoding/Decoding**:
     - **Decode**: Paste Hex -> Get JSON.
     - **Encode**: Write JSON -> Get Hex.
 - **Validation**: Constraints (Size, Range) are enforced. Errors are displayed in the UI.
 - **Example Loader**: Auto-fill valid JSON for testing.
+
+## ASN DAO Metadata API
+- `GET /api/asn/protocols/metadata`: returns the precompiled ASN_DAO for every protocol, including the list of source files (relative to `asn_specs/`) and available type names.
+- Metadata powers downstream flows where users select one or more prebuilt specs for encode/decode operations.
 
 ## Example Data
 **Protocol**: `simple_demo`

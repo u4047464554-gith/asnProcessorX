@@ -1,0 +1,17 @@
+MainModule DEFINITIONS AUTOMATIC TAGS ::=
+BEGIN
+
+IMPORTS
+    SubscriberId,
+    MessageId
+FROM CommonTypes;
+
+SessionStart ::= SEQUENCE {
+    subscriber SubscriberId,
+    requested MessageId,
+    payload OCTET STRING (SIZE (1..64))
+}
+
+END
+
+

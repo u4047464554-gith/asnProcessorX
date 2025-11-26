@@ -124,13 +124,16 @@ async def startup_event():
 async def list_protocols():
     return manager.list_protocols()
 
+@router.get("/protocols/metadata")
+async def list_protocol_metadata():
+    return manager.list_metadata()
+
 @router.get("/protocols/{protocol}/types")
 async def list_types(protocol: str):
-    compiler = manager.get_compiler(protocol)
-    if not compiler:
+    metadata = manager.get_protocol_metadata(protocol)
+    if not metadata:
         raise HTTPException(status_code=404, detail=f"Protocol '{protocol}' not found")
-    # Return sorted list of type names
-    return sorted(list(compiler.types.keys()))
+    return metadata["types"]
 
 @router.get("/protocols/{protocol}/types/{type_name}")
 async def get_type_definition(protocol: str, type_name: str):

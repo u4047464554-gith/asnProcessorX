@@ -1,7 +1,21 @@
 import os
-import asn1tools
 import glob
-from typing import Dict, Optional, List
+from dataclasses import dataclass, asdict
+from typing import Dict, Optional, List, Any
+
+import asn1tools
+
+
+@dataclass
+class ProtocolMetadata:
+    """Lightweight DAO describing compiled ASN.1 assets."""
+
+    name: str
+    files: List[str]
+    types: List[str]
+
+    def to_dict(self) -> Dict[str, Any]:
+        return asdict(self)
 
 class AsnManager:
     def __init__(self, specs_dir: str = "asn_specs"):
@@ -12,6 +26,7 @@ class AsnManager:
             self.specs_dir = specs_dir
             
         self.compilers: Dict[str, asn1tools.compiler.Specification] = {}
+        self.metadata: Dict[str, ProtocolMetadata] = {}
         self.ensure_specs_dir()
         
     def ensure_specs_dir(self):
@@ -32,27 +47,19 @@ class AsnManager:
 
         for protocol in subdirs:
             proto_path = os.path.join(self.specs_dir, protocol)
-            asn_files = glob.glob(os.path.join(proto_path, "*.asn"))
+            asn_files = sorted(glob.glob(os.path.join(proto_path, "*.asn")))
             
             if asn_files:
                 print(f"Compiling protocol: {protocol} with files: {asn_files}")
                 try:
-                    # Compile with all codecs to support runtime switching if possible, 
-                    # but asn1tools compile_files usually takes a codec.
-                    # We will default to 'per' for compilation or store the specification object 
-                    # which can be used for encoding/decoding with different rules if supported.
-                    # Actually asn1tools.compile_files returns a Specification object.
-                    # We typically need to specify the codec at compile time or use the 'per' codec for PER.
-                    # Let's compile specifically for PER as requested by the user for now, 
-                    # or better: just compile without specifying codec if we want the generic model, 
-                    # but asn1tools usually wants a codec for some operations. 
-                    # Wait, asn1tools.compile_files(..., codec='per') is common. 
-                    # Let's try to support multiple codecs by storing the file paths or re-compiling on demand?
-                    # Re-compiling is fast enough for MVP. 
-                    # Let's store the compiled object for 'per' (aligned) as default.
-                    
-                    # Note: 'uoer' is Unaligned PER. 'per' is Aligned PER.
-                    self.compilers[protocol] = asn1tools.compile_files(asn_files, codec='per')
+                    compiler = asn1tools.compile_files(asn_files, codec='per')
+                    self.compilers[protocol] = compiler
+                    type_names = sorted(list(compiler.types.keys()))
+                    self.metadata[protocol] = ProtocolMetadata(
+                        name=protocol,
+                        files=[os.path.relpath(path, self.specs_dir) for path in asn_files],
+                        types=type_names,
+                    )
                     print(f"Successfully compiled {protocol}")
                 except Exception as e:
                     print(f"Error compiling {protocol}: {e}")
@@ -62,10 +69,18 @@ class AsnManager:
 
     def reload(self):
         self.compilers.clear()
+        self.metadata.clear()
         self.load_protocols()
 
     def list_protocols(self) -> List[str]:
         return list(self.compilers.keys())
+
+    def get_protocol_metadata(self, protocol: str) -> Optional[Dict[str, Any]]:
+        meta = self.metadata.get(protocol)
+        return meta.to_dict() if meta else None
+
+    def list_metadata(self) -> List[Dict[str, Any]]:
+        return [meta.to_dict() for meta in self.metadata.values()]
 
 # Singleton instance
 manager = AsnManager()

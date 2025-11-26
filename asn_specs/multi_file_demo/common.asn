@@ -1,0 +1,18 @@
+CommonTypes DEFINITIONS AUTOMATIC TAGS ::=
+BEGIN
+
+SubscriberId ::= SEQUENCE {
+    mcc INTEGER (100..999),
+    mnc INTEGER (0..999),
+    msin OCTET STRING (SIZE (5))
+}
+
+MessageId ::= ENUMERATED {
+    attachRequest (0),
+    detachRequest (1),
+    serviceRequest (2)
+}
+
+END
+
+
