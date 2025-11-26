@@ -163,6 +163,7 @@ function App() {
   }
 
   const loadExample = () => {
+      setError(null)
       // Hardcoded examples for demo purposes
       if (selectedProtocol === 'simple_demo' && selectedType === 'Person') {
           setJsonData(JSON.stringify({
