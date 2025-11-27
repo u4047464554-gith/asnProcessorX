@@ -2,6 +2,7 @@ import os
 import glob
 import sys
 import json
+import re
 from dataclasses import dataclass, asdict
 from typing import Dict, Optional, List, Any
 
@@ -132,6 +133,43 @@ class AsnManager:
 
     def get_examples(self, protocol: str) -> Dict[str, Any]:
         return self.examples.get(protocol, {})
+    
+    def get_protocol_path(self, protocol: str) -> Optional[str]:
+        """
+        Finds the absolute path on disk for a given protocol name.
+        """
+        search_paths = self._resolve_specs_paths()
+        for specs_dir in search_paths:
+            if not os.path.isdir(specs_dir):
+                continue
+            proto_path = os.path.join(specs_dir, protocol)
+            if os.path.isdir(proto_path):
+                return os.path.abspath(proto_path)
+        return None
+
+    def scan_definitions(self, protocol: str) -> Dict[str, List[str]]:
+        """
+        Scans .asn files in the protocol directory and returns a mapping of
+        filename -> [list of defined types].
+        """
+        path = self.get_protocol_path(protocol)
+        if not path: return {}
+        
+        result = {}
+        asn_files = sorted(glob.glob(os.path.join(path, "*.asn")))
+        for f in asn_files:
+            filename = os.path.basename(f)
+            types = []
+            try:
+                with open(f, 'r', encoding='utf-8') as file:
+                    content = file.read()
+                    # Matches "Type ::="
+                    matches = re.findall(r'^\s*([A-Z][a-zA-Z0-9-]*)\s*::=', content, re.MULTILINE)
+                    types = matches
+            except Exception:
+                pass
+            result[filename] = types
+        return result
 
 # Singleton instance
 manager = AsnManager()

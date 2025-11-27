@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Box, Code, Group, Text, UnstyledButton } from '@mantine/core'
+import { Box, Code, Group, Text, UnstyledButton, Badge } from '@mantine/core'
 import { IconChevronDown, IconChevronRight, IconPointFilled } from '@tabler/icons-react'
 import type { DefinitionNode } from './types'
 
@@ -57,6 +57,8 @@ const DefinitionTreeNode = ({ node, depth }: NodeProps) => {
               {node.name || '<anonymous>'}
             </Text>
             <Code>{node.type}</Code>
+            {node.optional && <Badge size="xs" variant="outline" color="gray" style={{ textTransform: 'none' }}>OPTIONAL</Badge>}
+            {node.default !== undefined && <Badge size="xs" variant="outline" color="cyan" style={{ textTransform: 'none' }}>DEFAULT {String(node.default)}</Badge>}
           </Group>
           {constraintsText && (
             <Text size="xs" c="dimmed">
@@ -88,8 +90,3 @@ export const DefinitionTree = ({ root }: DefinitionTreeProps) => {
     </Box>
   )
 }
-
-
-
-
-

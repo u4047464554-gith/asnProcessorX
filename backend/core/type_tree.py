@@ -13,10 +13,18 @@ def build_type_tree(compiled_type: Any) -> Dict[str, Any]:
 
 
 def _describe_type(type_obj: Any, visited: Set[int]) -> Dict[str, Any]:
+    type_cls = type(type_obj).__name__
     node: Dict[str, Any] = {
         "name": getattr(type_obj, "name", None),
-        "type": getattr(type_obj, "type_name", type(type_obj).__name__),
+        "type": getattr(type_obj, "type_name", type_cls),
+        "kind": type_cls
     }
+
+    if getattr(type_obj, "optional", False):
+        node["optional"] = True
+
+    if getattr(type_obj, "default", None) is not None:
+        node["default"] = getattr(type_obj, "default")
 
     constraints = _extract_constraints(type_obj)
     if constraints:

@@ -12,11 +12,11 @@ import {
   Paper,
   Collapse,
   Modal,
-  ActionIcon,
   Grid,
   ScrollArea,
   Box,
-  MantineProvider
+  MantineProvider,
+  SegmentedControl
 } from '@mantine/core'
 import { useDebouncedValue } from '@mantine/hooks'
 import { IconSettings, IconLayoutSidebarRight } from '@tabler/icons-react'
@@ -30,6 +30,8 @@ import { demoPayloads, demoErrorPayloads } from './data/demos'
 import { SettingsModal } from './components/SettingsModal'
 import { themes } from './theme'
 import { StarTrekShip } from './components/StarTrekShip'
+import { SchemaEditor } from './components/editor/SchemaEditor'
+import { StructuredJsonEditor } from './components/editor/StructuredJsonEditor'
 
 const resolveApiBase = () => {
   if (import.meta.env.VITE_API_BASE) {
@@ -100,6 +102,14 @@ const base64ToHex = (base64: string) => {
   }
 }
 
+const safeParse = (json: string) => {
+    try {
+        return json ? JSON.parse(json) : undefined;
+    } catch {
+        return undefined;
+    }
+}
+
 function App() {
   const [protocols, setProtocols] = useState<string[]>([])
   const [selectedProtocol, setSelectedProtocol] = useState<string | null>(null)
@@ -120,6 +130,7 @@ function App() {
   // Tracking user input source to prevent loops
   // 'hex' implies source was Hex OR Base64 input (which converts to hex)
   const [lastEdited, setLastEdited] = useState<'hex' | 'json' | null>(null)
+  const [editorMode, setEditorMode] = useState<'raw' | 'structured'>('structured')
 
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -139,6 +150,7 @@ function App() {
 
   // Settings State
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [schemaEditorOpen, setSchemaEditorOpen] = useState(false)
 
   // Theme State
   const [currentThemeName, setCurrentThemeName] = useState<string>(() => {
@@ -480,6 +492,14 @@ function App() {
         <Group h="100%" px="md" justify="space-between" style={{ position: 'relative', zIndex: 1 }}>
           <Title order={3}>ASN.1 Processor</Title>
           <Group>
+            <Button
+                variant="outline"
+                size="xs"
+                disabled={!selectedProtocol}
+                onClick={() => setSchemaEditorOpen(true)}
+            >
+                Edit Schema
+            </Button>
             <Button 
                 variant="outline" 
                 size="xs" 
@@ -488,16 +508,22 @@ function App() {
             >
                 Generate C Stubs
             </Button>
-            <ActionIcon 
-                variant={inspectorOpen ? "filled" : "default"} 
+            <Button
+                variant={inspectorOpen ? "filled" : "outline"}
+                size="xs"
                 onClick={() => setInspectorOpen(!inspectorOpen)}
-                title="Toggle Bit Inspector"
+                leftSection={<IconLayoutSidebarRight size="1rem" />}
             >
-                <IconLayoutSidebarRight size="1rem" />
-            </ActionIcon>
-            <ActionIcon variant="default" onClick={() => setSettingsOpen(true)}>
-                <IconSettings size="1rem" />
-            </ActionIcon>
+                Inspector
+            </Button>
+            <Button
+                variant="outline"
+                size="xs"
+                onClick={() => setSettingsOpen(true)}
+                leftSection={<IconSettings size="1rem" />}
+            >
+                Settings
+            </Button>
           </Group>
         </Group>
       </AppShell.Header>
@@ -601,20 +627,42 @@ function App() {
 
                   <Paper withBorder p="md">
                     <Stack gap="md">
-                      <Text fw={600}>JSON Input</Text>
-                      <JsonInput
-                        placeholder="{ ... }"
-                        validationError="Invalid JSON"
-                        formatOnBlur
-                        autosize
-                        minRows={10}
-                        maxRows={25}
-                        value={jsonData}
-                        onChange={(val) => {
-                            setJsonData(val)
-                            setLastEdited('json')
-                        }}
-                      />
+                      <Group justify="space-between">
+                          <Text fw={600}>JSON Input</Text>
+                          <SegmentedControl 
+                              size="xs"
+                              value={editorMode}
+                              onChange={(v: any) => setEditorMode(v)}
+                              data={[{ label: 'Structured', value: 'structured' }, { label: 'Raw', value: 'raw' }]}
+                          />
+                      </Group>
+                      
+                      {editorMode === 'raw' ? (
+                          <JsonInput
+                            placeholder="{ ... }"
+                            validationError="Invalid JSON"
+                            formatOnBlur
+                            autosize
+                            minRows={10}
+                            maxRows={25}
+                            value={jsonData}
+                            onChange={(val) => {
+                                setJsonData(val)
+                                setLastEdited('json')
+                            }}
+                          />
+                      ) : (
+                          <Box style={{ minHeight: 300 }}>
+                              <StructuredJsonEditor 
+                                  data={safeParse(jsonData)} 
+                                  schema={definitionTree}
+                                  onChange={(newData) => {
+                                       setJsonData(JSON.stringify(newData, null, 2));
+                                       setLastEdited('json');
+                                  }}
+                              />
+                          </Box>
+                      )}
                     </Stack>
                   </Paper>
                 </Stack>
@@ -646,6 +694,7 @@ function App() {
             opened={codegenModalOpen} 
             onClose={() => setCodegenModalOpen(false)} 
             title={`Generate C Stubs for ${selectedProtocol}`}
+            size="lg"
         >
             <Stack>
                 <Text size="sm">
@@ -672,6 +721,18 @@ function App() {
             currentTheme={currentThemeName}
             onThemeChange={handleThemeChange}
         />
+
+        <Modal 
+            opened={schemaEditorOpen} 
+            onClose={() => setSchemaEditorOpen(false)} 
+            title={`Schema Editor: ${selectedProtocol}`}
+            fullScreen
+            padding={0}
+        >
+             <Box h="calc(100vh - 60px)">
+                 {selectedProtocol && <SchemaEditor protocol={selectedProtocol} />}
+             </Box>
+        </Modal>
       </AppShell.Main>
     </AppShell>
     </MantineProvider>
