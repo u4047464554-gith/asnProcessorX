@@ -306,33 +306,36 @@ function NodeRenderer({ node, value, onChange, level, path, label, isOptionalGho
 
     // Helper for tuple inputs (BIT STRING / OCTET STRING)
     if (['BIT STRING', 'OCTET STRING'].includes(kind)) {
-        // Expecting [hexString, length] or just hexString?
-        // User example: "mmec": ["0xAA", 8]
-        // But sometimes it's just a string. 
-        // We'll support both reading and writing.
-        // If value is string, treat as hex, length = hex.length * 4 (approx)
         const isTuple = Array.isArray(value);
         const hexVal = isTuple ? value[0] : (typeof value === 'string' ? value : '');
         const bitLen = isTuple ? value[1] : (hexVal.replace(/^0x/i, '').length * 4); // Default estimation from hex length
+        const isOctetString = kind === 'OCTET STRING';
 
         return (
              <Box ml={level * 16} mb={4}>
                  <Label />
-                 <Group gap="xs">
+                 <Group gap="xs" align="flex-end">
                      <TextInput 
+                         label="Hex Value"
                          placeholder="0x..." 
                          size="xs" 
                          value={hexVal} 
-                         onChange={(e) => handlePrimitiveChange([e.currentTarget.value, bitLen])}
+                         onChange={(e) => {
+                             const val = e.currentTarget.value;
+                             const newLen = val.replace(/^0x/i, '').length * 4;
+                             handlePrimitiveChange([val, newLen]);
+                         }}
                          style={{ flex: 1 }}
                      />
                      <NumberInput
+                        label="Bits"
                         placeholder="Bits"
                         size="xs"
                         value={bitLen}
                         onChange={(v) => handlePrimitiveChange([hexVal, Number(v)])}
                         style={{ width: 80 }}
                         min={0}
+                        disabled={isOctetString}
                      />
                  </Group>
              </Box>
