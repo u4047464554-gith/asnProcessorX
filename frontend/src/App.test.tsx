@@ -2,7 +2,9 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import App from './App';
 import { vi } from 'vitest';
 import { useAsnProcessor } from './hooks/useAsnProcessor';
+import axios from 'axios';
 
+vi.mock('axios');
 vi.mock('./hooks/useAsnProcessor');
 vi.mock('./components/StarTrekShip', () => ({ StarTrekShip: () => <div data-testid="ship" /> }));
 
@@ -44,8 +46,8 @@ describe('App View', () => {
         setHexData: vi.fn(),
         jsonData: '',
         setJsonData: vi.fn(),
-        base64Data: '',
-        setBase64Data: vi.fn(),
+        formattedHex: '',
+        setFormattedHex: vi.fn(),
         error: null,
         loading: false,
         traceData: null,
@@ -65,6 +67,9 @@ describe('App View', () => {
     beforeEach(() => {
         vi.clearAllMocks();
         (useAsnProcessor as any).mockReturnValue(mockHook);
+        (axios.get as any).mockResolvedValue({ data: [] });
+        (axios.put as any).mockResolvedValue({ data: { status: 'success' } });
+        (axios.post as any).mockResolvedValue({ data: { status: 'success' } });
     });
 
     it('renders main layout', () => {
@@ -121,9 +126,9 @@ describe('App View', () => {
 
     it('handles hex input changes', () => {
         const setHexData = vi.fn();
-        const setBase64Data = vi.fn();
+        const setFormattedHex = vi.fn();
         const setLastEdited = vi.fn();
-        (useAsnProcessor as any).mockReturnValue({ ...mockHook, setHexData, setBase64Data, setLastEdited });
+        (useAsnProcessor as any).mockReturnValue({ ...mockHook, setHexData, setFormattedHex, setLastEdited });
         
         render(<App />);
         
@@ -131,21 +136,21 @@ describe('App View', () => {
         fireEvent.change(hexInput, { target: { value: 'AA' } });
         
         expect(setHexData).toHaveBeenCalledWith('AA');
-        expect(setBase64Data).toHaveBeenCalled();
+        expect(setFormattedHex).toHaveBeenCalled();
         expect(setLastEdited).toHaveBeenCalledWith('hex');
     });
 
-    it('handles Base64 user input', () => {
-        const setBase64Data = vi.fn();
+    it('handles 0x Hex user input', () => {
+        const setFormattedHex = vi.fn();
         const setHexData = vi.fn();
         const setLastEdited = vi.fn();
-        (useAsnProcessor as any).mockReturnValue({ ...mockHook, setBase64Data, setHexData, setLastEdited });
+        (useAsnProcessor as any).mockReturnValue({ ...mockHook, setFormattedHex, setHexData, setLastEdited });
         render(<App />);
         
-        const input = screen.getByPlaceholderText('Base64 representation');
-        fireEvent.change(input, { target: { value: 'SGVsbG8=' } });
+        const input = screen.getByPlaceholderText('0x...');
+        fireEvent.change(input, { target: { value: '0xAA' } });
         
-        expect(setBase64Data).toHaveBeenCalledWith('SGVsbG8=');
+        expect(setFormattedHex).toHaveBeenCalledWith('0xAA');
         expect(setHexData).toHaveBeenCalled(); 
         expect(setLastEdited).toHaveBeenCalledWith('hex');
     });

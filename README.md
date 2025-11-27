@@ -10,11 +10,11 @@ It provides three modes of operation:
 
 ## Features
 - **PER Encoding/Decoding**:
-    - **Decode**: Paste Hex/Base64 -> Get JSON.
-    - **Encode**: Write JSON -> Get Hex/Base64.
+    - **Decode**: Paste Hex (raw or 0x formatted) -> Get JSON.
+    - **Encode**: Write JSON -> Get Hex.
     - **Auto-Conversion**: Changes are reflected immediately (bidirectional sync).
 - **Bit Inspector**: Visualize how each bit in the stream maps to the ASN.1 structure.
-- **Base64 Support**: View and edit payloads in Base64 format alongside Hex.
+- **0x Hex Support**: View and edit payloads in C-style byte array format (0xAA, 0xBB) alongside raw Hex.
 - **Dynamic Schema Loading**: Place `.asn` files in `asn_specs/` or configure directories in the app.
 - **Multi-File Protocols**: Support for complex schemas split across multiple files (e.g. `common.asn`, `main.asn`).
 - **Validation**: Constraints (Size, Range) are enforced with detailed diagnostic messages.

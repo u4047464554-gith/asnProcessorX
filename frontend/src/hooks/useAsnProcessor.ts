@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useDebouncedValue } from '@mantine/hooks';
 import { AsnService } from '../services/asnService';
 import { formatErrorMessage } from '../utils/error';
-import { hexToBase64 } from '../utils/conversion';
+import { hexTo0xHex } from '../utils/conversion';
 import { downloadBlob } from '../utils/file';
 import type { DefinitionNode } from '../components/definition/types';
 import type { TraceResponsePayload } from '../components/trace/types';
@@ -22,7 +22,7 @@ export const useAsnProcessor = () => {
 
     const [hexData, setHexData] = useState('');
     const [jsonData, setJsonData] = useState('');
-    const [base64Data, setBase64Data] = useState('');
+    const [formattedHex, setFormattedHex] = useState('');
     const [debouncedHex] = useDebouncedValue(hexData, 500);
     const [debouncedJson] = useDebouncedValue(jsonData, 500);
     const [lastEdited, setLastEdited] = useState<'hex' | 'json' | null>(null);
@@ -168,7 +168,7 @@ export const useAsnProcessor = () => {
             setError(null);
             const newHex = res.hex_data || '';
             setHexData(newHex);
-            setBase64Data(hexToBase64(newHex));
+            setFormattedHex(hexTo0xHex(newHex));
             
             await fetchTrace(selectedProtocol, selectedType, newHex);
         } catch (err) {
@@ -255,7 +255,7 @@ export const useAsnProcessor = () => {
         definitionTree,
         hexData, setHexData,
         jsonData, setJsonData,
-        base64Data, setBase64Data,
+        formattedHex, setFormattedHex,
         error, setError, loading,
         traceData, traceLoading, traceError,
         editorMode, setEditorMode,

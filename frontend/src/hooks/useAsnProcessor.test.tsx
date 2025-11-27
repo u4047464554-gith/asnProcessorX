@@ -112,6 +112,7 @@ describe('useAsnProcessor', () => {
         
         await act(async () => { await result.current.handleEncode(); });
         expect(result.current.hexData).toBe('CCDD');
+        expect(result.current.formattedHex).toBe('0xCC, 0xDD');
     });
 
     it('handleEncode invalid JSON', async () => {

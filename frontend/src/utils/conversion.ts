@@ -32,3 +32,15 @@ export const safeParse = (json: string) => {
     }
 }
 
+export const hexTo0xHex = (hex: string) => {
+    const clean = hex.replace(/[\s\n]/g, '').replace(/^0x/i, '');
+    if (!clean) return '';
+    const chunks = clean.match(/.{1,2}/g) || [];
+    return chunks.map(b => '0x' + b.toUpperCase()).join(', ');
+};
+
+export const xHexToHex = (xHex: string) => {
+    let clean = xHex.replace(/0x/gi, '').replace(/[^0-9a-fA-F]/g, '');
+    return clean.toUpperCase();
+};
+

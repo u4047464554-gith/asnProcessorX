@@ -27,7 +27,7 @@ import { StarTrekShip } from './components/StarTrekShip'
 import { SchemaEditor } from './components/editor/SchemaEditor'
 import { StructuredJsonEditor } from './components/editor/StructuredJsonEditor'
 import { useAsnProcessor } from './hooks/useAsnProcessor'
-import { base64ToHex, hexToBase64, safeParse } from './utils/conversion'
+import { hexTo0xHex, xHexToHex, safeParse } from './utils/conversion'
 
 function App() {
   // Business Logic & State
@@ -38,7 +38,7 @@ function App() {
       definitionTree,
       hexData, setHexData,
       jsonData, setJsonData,
-      base64Data, setBase64Data,
+      formattedHex, setFormattedHex,
       error,
       traceData, traceLoading, traceError,
       editorMode, setEditorMode,
@@ -188,26 +188,26 @@ function App() {
                         onChange={(e) => {
                             const val = e.currentTarget.value
                             setHexData(val)
-                            setBase64Data(hexToBase64(val))
+                            setFormattedHex(hexTo0xHex(val))
                             setLastEdited('hex')
                         }}
                         style={{ fontFamily: 'monospace' }}
                       />
                       
-                      <Text fw={600}>Base64</Text>
+                      <Text fw={600}>0x Hex</Text>
                       <Textarea
-                        placeholder="Base64 representation"
+                        placeholder="0x..."
                         minRows={2}
                         maxRows={5}
                         autosize
-                        value={base64Data}
+                        value={formattedHex}
                         onChange={(e) => {
                             const val = e.currentTarget.value
-                            setBase64Data(val)
-                            const hex = base64ToHex(val)
+                            setFormattedHex(val)
+                            const hex = xHexToHex(val)
                             if (hex) {
                                 setHexData(hex)
-                                setLastEdited('hex') // Trigger hex decode logic
+                                setLastEdited('hex')
                             }
                         }}
                         style={{ fontFamily: 'monospace' }}
