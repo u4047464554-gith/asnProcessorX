@@ -9,6 +9,7 @@ class AppConfig(BaseModel):
     server_host: str = "127.0.0.1"
     log_level: str = "INFO"
     splash_duration: int = 10000
+    saved_messages_dir: str = "saved_messages"
 
     model_config = ConfigDict(extra="ignore")
 
@@ -59,6 +60,12 @@ class ConfigManager:
         current = self.config.model_dump()
         current.update(kwargs)
         self.save(AppConfig(**current))
+
+    def get_messages_path(self) -> str:
+        path = self.config.saved_messages_dir
+        if os.path.isabs(path):
+            return path
+        return os.path.join(self.config_dir, path)
 
 # Singleton
 config_manager = ConfigManager()

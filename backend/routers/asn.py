@@ -8,6 +8,7 @@ from backend.core.asn1_runtime import asn1tools
 
 from backend.core.manager import manager
 from backend.core.serialization import deserialize_asn1_data, serialize_asn1_data
+from backend.core.converter import convert_to_python_asn1
 from backend.core.tracer import TraceService
 from backend.core.type_tree import build_type_tree
 from backend.core.codegen import CodegenService
@@ -50,13 +51,16 @@ async def encode_message(request: EncodeRequest):
     try:
         # We need to recursively convert hex strings in JSON back to bytes 
         # because the compiler expects bytes for OCTET STRING / BIT STRING.
-        # However, asn1tools might handle hex strings for some fields or fail.
-        # A robust approach is to check the schema or try encoding.
-        # For MVP, let's assume the input JSON 'data' matches what asn1tools expects,
-        # EXCEPT that bytes are represented as hex strings.
+        # AND convert Dict to Tuple for CHOICE types.
         
         print(f"[ENCODE] Raw request data: {request.data}", flush=True)
-        prepared_data = deserialize_asn1_data(request.data)
+        
+        type_obj = compiler.types.get(request.type_name)
+        if type_obj:
+            prepared_data = convert_to_python_asn1(request.data, type_obj)
+        else:
+            prepared_data = deserialize_asn1_data(request.data)
+            
         print(f"[ENCODE] Prepared data: {prepared_data}", flush=True)
 
         encoded = compiler.encode(
@@ -99,6 +103,13 @@ async def list_protocols():
 @router.get("/protocols/metadata")
 async def list_protocol_metadata():
     return manager.list_metadata()
+
+@router.get("/protocols/{protocol}/metadata")
+async def get_metadata(protocol: str):
+    metadata = manager.get_protocol_metadata(protocol)
+    if not metadata:
+        raise HTTPException(status_code=404, detail=f"Protocol '{protocol}' not found")
+    return metadata
 
 @router.get("/protocols/{protocol}/types")
 async def list_types(protocol: str):

@@ -63,10 +63,16 @@ describe('SchemaEditor', () => {
       if (url.endsWith('/files')) return Promise.resolve({ data: files });
       if (url.endsWith('/files/file1.asn')) return Promise.resolve({ data: { content: 'Content 1' } });
       if (url.endsWith('/definitions')) return Promise.resolve({ data: { 'file1.asn': ['TypeA'] } });
+      if (url.endsWith('/metadata')) return Promise.resolve({ data: { is_bundled: true } });
       return Promise.resolve({ data: '' });
     });
     window.alert = vi.fn();
     console.error = vi.fn();
+  });
+
+  it('shows bundled warning', async () => {
+    renderWithMantine(<SchemaEditor protocol={protocol} />);
+    await waitFor(() => expect(screen.getByText(/Bundled Protocol/)).toBeInTheDocument());
   });
 
   it('renders and loads files', async () => {

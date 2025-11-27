@@ -14,6 +14,11 @@ vi.mock('../services/asnService', () => ({
         encode: vi.fn(),
         trace: vi.fn(),
         generateCStubs: vi.fn(),
+        listSavedMessages: vi.fn(),
+        saveMessage: vi.fn(),
+        loadMessage: vi.fn(),
+        deleteMessage: vi.fn(),
+        clearMessages: vi.fn(),
     }
 }));
 
@@ -37,6 +42,7 @@ describe('useAsnProcessor', () => {
         (AsnService.getProtocols as any).mockResolvedValue(['proto1']);
         (AsnService.getTypes as any).mockResolvedValue(['Type1']);
         (AsnService.getExamples as any).mockResolvedValue({ 'Type1': { custom: 1 } });
+        (AsnService.listSavedMessages as any).mockResolvedValue([]);
     });
 
     it('fetches protocols on mount', async () => {
@@ -49,7 +55,11 @@ describe('useAsnProcessor', () => {
         act(() => { result.current.setSelectedProtocol('proto1'); });
         
         await waitFor(() => {
-            expect(result.current.demoTypeOptions).toHaveLength(3); // Valid, Dynamic, Error
+             // We expect grouped options.
+            expect(result.current.demoTypeOptions).toHaveLength(1); 
+            const group = result.current.demoTypeOptions[0] as any;
+            expect(group.group).toBe('Demos');
+            expect(group.items).toHaveLength(3);
         });
     });
 

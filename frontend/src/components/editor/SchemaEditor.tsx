@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import { 
     Stack, Text, Button, NavLink, 
-    Group, ActionIcon, ScrollArea, Box, Loader, useMantineColorScheme, Tabs, Accordion, Modal, TextInput
+    Group, ActionIcon, ScrollArea, Box, Loader, useMantineColorScheme, Tabs, Accordion, Modal, TextInput, Alert
 } from '@mantine/core';
-import { IconDeviceFloppy, IconPlus, IconRefresh, IconFileCode, IconCamera } from '@tabler/icons-react';
+import { IconDeviceFloppy, IconPlus, IconRefresh, IconFileCode, IconCamera, IconInfoCircle } from '@tabler/icons-react';
 import axios from 'axios';
+import { AsnService } from '../../services/asnService';
 import Editor, { type Monaco } from '@monaco-editor/react';
 
 interface SchemaEditorProps {
@@ -42,7 +43,11 @@ const SNIPPETS = [
         code: 'MyList ::= SEQUENCE (SIZE(0..10)) OF MyType' 
     },
     { 
-        label: 'Bit String', 
+        label: 'Optional Field', 
+        code: 'myField MyType OPTIONAL,' 
+    },
+    { 
+        label: 'Bit String',  
         code: 'MyBits ::= BIT STRING { flag1(0), flag2(1) }' 
     },
     { 
@@ -63,6 +68,7 @@ export function SchemaEditor({ protocol, onSchemaUpdated }: SchemaEditorProps) {
     
     const [createFileOpen, setCreateFileOpen] = useState(false);
     const [newFileName, setNewFileName] = useState('');
+    const [isBundled, setIsBundled] = useState(false);
 
     const editorRef = useRef<any>(null);
     const monacoRef = useRef<Monaco | null>(null);
@@ -89,6 +95,10 @@ export function SchemaEditor({ protocol, onSchemaUpdated }: SchemaEditorProps) {
     }
 
     useEffect(() => {
+        AsnService.getProtocolMetadata(protocol).then(meta => {
+            setIsBundled(meta.is_bundled);
+        }).catch(console.error);
+
         fetchFiles();
         fetchDefinitions();
     }, [protocol]);
@@ -189,8 +199,10 @@ export function SchemaEditor({ protocol, onSchemaUpdated }: SchemaEditorProps) {
         
         while ((match = regex.exec(text)) !== null) {
             const moduleName = match[1];
-            const found = files.some(f => f === `${moduleName}.asn` || f === moduleName) 
-                          || definitions[`${moduleName}.asn`] !== undefined;
+            const found = files.some(f => 
+                f.toLowerCase() === `${moduleName}.asn`.toLowerCase() || 
+                f.toLowerCase() === moduleName.toLowerCase()
+            ) || definitions[`${moduleName}.asn`] !== undefined;
             
             if (!found) {
                 const startPos = match.index + match[0].lastIndexOf(moduleName);
@@ -242,6 +254,12 @@ export function SchemaEditor({ protocol, onSchemaUpdated }: SchemaEditorProps) {
 
     return (
         <Stack h="100%" gap={0}>
+            {isBundled && (
+                <Alert variant="light" color="blue" title="Bundled Protocol" icon={<IconInfoCircle />} p="xs" radius={0}>
+                    Changes to this protocol are temporary (saved to app resources) and will be reset if you update the app. 
+                    To create persistent schemas, please add a custom folder in Settings.
+                </Alert>
+            )}
             {/* Toolbar */}
             <Group justify="space-between" p="xs" style={{ borderBottom: '1px solid var(--mantine-color-default-border)', flexShrink: 0 }} bg="var(--mantine-color-body)">
                 <Group gap="xs">
@@ -325,7 +343,8 @@ export function SchemaEditor({ protocol, onSchemaUpdated }: SchemaEditorProps) {
                                 fontSize: 14,
                                 scrollBeyondLastLine: false,
                                 automaticLayout: true,
-                                padding: { top: 10, bottom: 10 }
+                                padding: { top: 10, bottom: 10 },
+                                wordWrap: 'on'
                             }}
                         />
                     )}

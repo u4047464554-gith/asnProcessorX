@@ -17,6 +17,7 @@ class ProtocolMetadata:
     name: str
     files: List[str]
     types: List[str]
+    is_bundled: bool = False
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -65,15 +66,26 @@ class AsnManager:
         search_paths = self._resolve_specs_paths()
         print(f"[AsnManager] Scanning paths: {search_paths}")
         
-        self.compilers.clear()
-        self.metadata.clear()
-        self.examples.clear()
+        # We use temporary dicts to build the new state
+        # If a protocol fails to compile, we try to retain the old version
+        new_compilers = {}
+        new_metadata = {}
+        new_examples = {}
 
         errors = {}
+
+        # Determine bundled dir
+        base_dir = os.getcwd()
+        if getattr(sys, 'frozen', False):
+            base_dir = os.path.dirname(sys.executable)
+        
+        bundled_dir_abs = os.path.abspath(os.path.join(base_dir, 'asn_specs'))
 
         for specs_dir in search_paths:
             if not os.path.isdir(specs_dir):
                 continue
+            
+            is_bundled = os.path.abspath(specs_dir) == bundled_dir_abs
 
             # List subdirectories
             subdirs = [d for d in os.listdir(specs_dir) 
@@ -87,12 +99,13 @@ class AsnManager:
                     print(f"Compiling protocol: {protocol} with files: {asn_files}")
                     try:
                         compiler = asn1tools.compile_files(asn_files, codec='per')
-                        self.compilers[protocol] = compiler
+                        new_compilers[protocol] = compiler
                         type_names = sorted(list(compiler.types.keys()))
-                        self.metadata[protocol] = ProtocolMetadata(
+                        new_metadata[protocol] = ProtocolMetadata(
                             name=protocol,
                             files=[os.path.relpath(path, specs_dir) for path in asn_files],
                             types=type_names,
+                            is_bundled=is_bundled
                         )
                         
                         # Load JSON examples
@@ -109,13 +122,24 @@ class AsnManager:
                                 print(f"Warning: Failed to load example {jf}: {e}")
                         
                         if loaded_examples:
-                            self.examples[protocol] = loaded_examples
+                            new_examples[protocol] = loaded_examples
                             print(f"Loaded {len(loaded_examples)} examples for {protocol}")
 
                         print(f"Successfully compiled {protocol}")
                     except Exception as e:
                         print(f"Error compiling {protocol}: {e}")
                         errors[protocol] = str(e)
+                        # Retain old version if available
+                        if protocol in self.compilers:
+                            print(f"Retaining previous version of {protocol}")
+                            new_compilers[protocol] = self.compilers[protocol]
+                            new_metadata[protocol] = self.metadata[protocol]
+                            if protocol in self.examples:
+                                new_examples[protocol] = self.examples[protocol]
+        
+        self.compilers = new_compilers
+        self.metadata = new_metadata
+        self.examples = new_examples
         
         return errors
 

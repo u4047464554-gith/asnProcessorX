@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { 
     Stack, Group, Text, TextInput, NumberInput, 
-    Select, Checkbox, ActionIcon, Box, Collapse, 
-    Badge, ThemeIcon
+    Select, ActionIcon, Box, Collapse, 
+    Badge, ThemeIcon, Button, Modal, Textarea, Input
 } from '@mantine/core';
 import { 
     IconPlus, IconTrash, IconChevronRight, IconChevronDown
@@ -30,6 +30,56 @@ const setCachedValue = (fieldName: string, value: any) => {
         localStorage.setItem(EDITOR_CACHE_KEY, JSON.stringify(cache));
     } catch {}
 };
+
+function LongTextRenderer({ value, onChange, label, placeholder }: any) {
+    const [open, setOpen] = useState(false);
+    const strVal = String(value || '');
+    const isLong = strVal.length > 60;
+
+    if (!isLong) {
+        return (
+            <TextInput 
+                size="xs" 
+                value={strVal} 
+                onChange={(e) => onChange(e.currentTarget.value)} 
+                label={label}
+                placeholder={placeholder}
+                style={{ flex: 1 }}
+            />
+        );
+    }
+
+    return (
+        <>
+            <Input.Wrapper label={label} style={{ flex: 1 }}>
+                <Group gap="xs">
+                    <TextInput 
+                        size="xs" 
+                        value={strVal.slice(0, 60) + '...'} 
+                        readOnly 
+                        style={{ flex: 1 }}
+                        rightSection={<Badge size="xs" variant="outline" color="gray" style={{ textTransform: 'none' }}>{strVal.length}</Badge>}
+                        rightSectionWidth={70}
+                    />
+                    <Button size="xs" variant="default" onClick={() => setOpen(true)}>Edit</Button>
+                </Group>
+            </Input.Wrapper>
+            <Modal opened={open} onClose={() => setOpen(false)} title={`Edit ${label || 'Value'}`} size="lg">
+                <Textarea
+                    value={strVal}
+                    onChange={(e) => onChange(e.currentTarget.value)}
+                    minRows={10}
+                    autosize
+                    maxRows={20}
+                    data-autofocus
+                />
+                <Group justify="flex-end" mt="md">
+                    <Button onClick={() => setOpen(false)}>Done</Button>
+                </Group>
+            </Modal>
+        </>
+    );
+}
 
 const getKind = (node: DefinitionNode): string => {
     if (node.kind) {
@@ -308,34 +358,43 @@ function NodeRenderer({ node, value, onChange, level, path, label, isOptionalGho
     if (['BIT STRING', 'OCTET STRING'].includes(kind)) {
         const isTuple = Array.isArray(value);
         const hexVal = isTuple ? value[0] : (typeof value === 'string' ? value : '');
-        const bitLen = isTuple ? value[1] : (hexVal.replace(/^0x/i, '').length * 4); // Default estimation from hex length
         const isOctetString = kind === 'OCTET STRING';
+        
+        // For OctetString: read-only byte length
+        // For BitString: editable bit length
+        const cleanHex = hexVal.replace(/^0x/i, '');
+        const displayedLen = isOctetString 
+             ? Math.ceil(cleanHex.length / 2) // Bytes (ceil for safety on partials)
+             : (isTuple ? value[1] : (cleanHex.length * 4)); // Bits
 
         return (
              <Box ml={level * 16} mb={4}>
                  <Label />
                  <Group gap="xs" align="flex-end">
-                     <TextInput 
+                     <LongTextRenderer 
                          label="Hex Value"
                          placeholder="0x..." 
-                         size="xs" 
                          value={hexVal} 
-                         onChange={(e) => {
-                             const val = e.currentTarget.value;
-                             const newLen = val.replace(/^0x/i, '').length * 4;
-                             handlePrimitiveChange([val, newLen]);
+                         onChange={(val: string) => {
+                             const clean = val.replace(/^0x/i, '');
+                             const newBitLen = clean.length * 4;
+                             handlePrimitiveChange([val, newBitLen]);
                          }}
-                         style={{ flex: 1 }}
                      />
                      <NumberInput
-                        label="Bits"
-                        placeholder="Bits"
+                        label={isOctetString ? "Bytes" : "Bits"}
+                        placeholder={isOctetString ? "Bytes" : "Bits"}
                         size="xs"
-                        value={bitLen}
-                        onChange={(v) => handlePrimitiveChange([hexVal, Number(v)])}
+                        value={displayedLen}
+                        onChange={(v) => {
+                            if (!isOctetString) {
+                                handlePrimitiveChange([hexVal, Number(v)]);
+                            }
+                        }}
                         style={{ width: 80 }}
                         min={0}
-                        disabled={isOctetString}
+                        readOnly={isOctetString}
+                        variant={isOctetString ? "filled" : "default"}
                      />
                  </Group>
              </Box>
@@ -358,29 +417,40 @@ function NodeRenderer({ node, value, onChange, level, path, label, isOptionalGho
     if (kind === 'BOOLEAN') {
         return (
             <Box ml={level * 16} mb={4}>
-                <Checkbox 
-                    label={fieldName} 
-                    checked={Boolean(value)} 
-                    onChange={(e) => handlePrimitiveChange(e.currentTarget.checked)} 
+                <Label />
+                <Select
+                    size="xs"
+                    data={['true', 'false']}
+                    value={value ? 'true' : 'false'}
+                    onChange={(val) => handlePrimitiveChange(val === 'true')}
+                    allowDeselect={false}
                 />
             </Box>
         );
     }
     
     if (kind === 'ENUMERATED') {
-        // Need access to constraints to find values.
-        // constraints: { namedBits: { name: val } } or similar?
-        // Actually backend returns `choices`?
-        // DefinitionTree logic used `constraints.choices`.
-        // Let's assume generic Text Input if no options found
+        const choices = (node.constraints?.choices || []) as string[];
+        
         return (
              <Box ml={level * 16} mb={4}>
                  <Label />
-                 <TextInput 
-                     size="xs" 
-                     value={String(value || '')} 
-                     onChange={(e) => handlePrimitiveChange(e.currentTarget.value)}
-                 />
+                 {choices.length > 0 ? (
+                     <Select
+                         size="xs"
+                         data={choices}
+                         value={value ? String(value) : null}
+                         onChange={(val) => handlePrimitiveChange(val)}
+                         searchable
+                         clearable={node.optional}
+                         placeholder="Select value"
+                     />
+                 ) : (
+                     <LongTextRenderer 
+                         value={String(value || '')} 
+                         onChange={(val: string) => handlePrimitiveChange(val)}
+                     />
+                 )}
              </Box>
         );
     }
@@ -389,10 +459,9 @@ function NodeRenderer({ node, value, onChange, level, path, label, isOptionalGho
     return (
         <Box ml={level * 16} mb={4}>
             <Label />
-            <TextInput 
-                size="xs" 
+            <LongTextRenderer 
                 value={typeof value === 'string' ? value : JSON.stringify(value)} 
-                onChange={(e) => handlePrimitiveChange(e.currentTarget.value)} 
+                onChange={(val: string) => handlePrimitiveChange(val)} 
             />
         </Box>
     );

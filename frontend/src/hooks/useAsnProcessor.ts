@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useDebouncedValue } from '@mantine/hooks';
+import type { ComboboxItem, ComboboxItemGroup } from '@mantine/core';
 import { AsnService } from '../services/asnService';
 import { formatErrorMessage } from '../utils/error';
 import { hexTo0xHex } from '../utils/conversion';
@@ -9,10 +10,11 @@ import type { TraceResponsePayload } from '../components/trace/types';
 import type { DemoEntry } from '../data/demos';
 import { demoPayloads, demoErrorPayloads } from '../data/demos';
 
-export type DemoOption = { value: string; label: string };
+export type DemoOption = ComboboxItem | ComboboxItemGroup;
 
 export const useAsnProcessor = () => {
     const [protocols, setProtocols] = useState<string[]>([]);
+    const [savedMessages, setSavedMessages] = useState<string[]>([]);
     const [selectedProtocol, setSelectedProtocol] = useState<string | null>(null);
     const [demoTypeOptions, setDemoTypeOptions] = useState<DemoOption[]>([]);
     const [selectedDemoOption, setSelectedDemoOption] = useState<string | null>(null);
@@ -37,9 +39,14 @@ export const useAsnProcessor = () => {
     const [codegenLoading, setCodegenLoading] = useState(false);
     const [codegenError, setCodegenError] = useState<string | null>(null);
     const [refreshTrigger, setRefreshTrigger] = useState(0);
+    const [savedTrigger, setSavedTrigger] = useState(0);
 
     const refreshDefinitions = useCallback(() => {
         setRefreshTrigger(prev => prev + 1);
+    }, []);
+
+    const refreshSavedMessages = useCallback(() => {
+        setSavedTrigger(prev => prev + 1);
     }, []);
 
     useEffect(() => {
@@ -47,11 +54,23 @@ export const useAsnProcessor = () => {
     }, []);
 
     useEffect(() => {
+        AsnService.listSavedMessages().then(setSavedMessages).catch(console.error);
+    }, [savedTrigger]);
+
+    useEffect(() => {
         if (!selectedProtocol) {
-            setDemoTypeOptions([]);
-            setSelectedDemoOption(null);
-            setSelectedType(null);
-            setDynamicExamples({});
+            const savedItems = savedMessages.map(msg => ({ 
+                value: `saved::${msg}`, label: msg 
+            }));
+            if (savedItems.length > 0) {
+                setDemoTypeOptions([{ group: 'Saved Messages', items: savedItems }]);
+            } else {
+                setDemoTypeOptions([]);
+            }
+            
+            if (!selectedProtocol) {
+                setDynamicExamples({});
+            }
             return;
         }
 
@@ -62,31 +81,41 @@ export const useAsnProcessor = () => {
             setDynamicExamples(examples);
             const options: DemoOption[] = [];
             
+            // Saved Messages
+            const savedItems = savedMessages.map(msg => ({ 
+                value: `saved::${msg}`, label: msg 
+            }));
+            if (savedItems.length > 0) {
+                options.push({ group: 'Saved Messages', items: savedItems });
+            }
+
+            // Demos
+            const demosItems: ComboboxItem[] = [];
+            
             types.forEach(typeName => {
                 if (demoPayloads[selectedProtocol]?.[typeName]) {
-                    options.push({ value: `${typeName}::valid`, label: `${typeName} (Valid Demo)` });
+                    demosItems.push({ value: `${typeName}::valid`, label: `${typeName} (Valid Demo)` });
                 }
                 if (examples[typeName]) {
-                    options.push({ value: `${typeName}::dynamic`, label: `${typeName} (Custom Example)` });
+                    demosItems.push({ value: `${typeName}::dynamic`, label: `${typeName} (Custom Example)` });
                 }
                 demoErrorPayloads[selectedProtocol]?.[typeName]?.forEach((_, idx) => {
-                    options.push({ value: `${typeName}::error::${idx}`, label: `${typeName} (Error Demo #${idx + 1})` });
+                    demosItems.push({ value: `${typeName}::error::${idx}`, label: `${typeName} (Error Demo #${idx + 1})` });
                 });
             });
             
-            if (options.length === 0) {
-                types.forEach(t => options.push({ value: t, label: t }));
+            if (demosItems.length > 0) {
+                options.push({ group: 'Demos', items: demosItems });
+            } else if (types.length > 0) {
+                // If no demos, show types in a group or flat?
+                // Let's use group 'Types'
+                const typeItems = types.map(t => ({ value: t, label: t }));
+                options.push({ group: 'Types', items: typeItems });
             }
-            setDemoTypeOptions(options);
-            // We preserve selection if possible, or reset if invalid. 
-            // But for simple refresh, we might want to keep current selection.
-            // The logic below resets selection if we change protocol, but if refreshTrigger fires,
-            // selectedProtocol is unchanged.
-            // Wait, this effect runs on [selectedProtocol]. If I add refreshTrigger, it re-runs.
-            // I need to be careful not to reset selection if only refreshTrigger changed.
             
+            setDemoTypeOptions(options);
         }).catch(console.error);
-    }, [selectedProtocol, refreshTrigger]);
+    }, [selectedProtocol, refreshTrigger, savedMessages]);
 
     useEffect(() => {
         if (selectedProtocol && selectedType) {
@@ -194,6 +223,25 @@ export const useAsnProcessor = () => {
             return;
         }
         const parts = value.split('::');
+        const mode = parts[0];
+
+        if (mode === 'saved') {
+             const filename = parts[1];
+             setLoading(true);
+             AsnService.loadMessage(filename).then(msg => {
+                 if (msg.protocol !== selectedProtocol) {
+                     setSelectedProtocol(msg.protocol);
+                 }
+                 setSelectedType(msg.type);
+                 setJsonData(JSON.stringify(msg.data, null, 2));
+                 setLastEdited('json');
+                 setError(null);
+             }).catch(err => {
+                 setError("Failed to load message: " + (err.response?.data?.detail || err.message));
+             }).finally(() => setLoading(false));
+             return;
+        }
+
         const typeName = parts[0];
         setSelectedType(typeName);
         
@@ -215,6 +263,46 @@ export const useAsnProcessor = () => {
              }
         } else {
             setJsonData('');
+        }
+    };
+
+    const handleSaveMessage = async (filename: string) => {
+        if (!selectedProtocol || !selectedType || !jsonData) return false;
+        try {
+            const parsed = JSON.parse(jsonData);
+            await AsnService.saveMessage(filename, selectedProtocol, selectedType, parsed);
+            refreshSavedMessages();
+            return true;
+        } catch (e: any) {
+            setError(formatErrorMessage(e));
+            return false;
+        }
+    };
+
+    const handleDeleteMessage = async (filename: string) => {
+        try {
+            await AsnService.deleteMessage(filename);
+            refreshSavedMessages();
+            if (selectedDemoOption === `saved::${filename}`) {
+                setSelectedDemoOption(null);
+                setJsonData('');
+            }
+        } catch (e: any) {
+            setError(formatErrorMessage(e));
+        }
+    };
+
+    const handleClearMessages = async () => {
+        if (!confirm("Delete all saved messages?")) return;
+        try {
+            await AsnService.clearMessages();
+            refreshSavedMessages();
+            if (selectedDemoOption?.startsWith('saved::')) {
+                setSelectedDemoOption(null);
+                setJsonData('');
+            }
+        } catch (e: any) {
+            setError(formatErrorMessage(e));
         }
     };
 
@@ -248,8 +336,20 @@ export const useAsnProcessor = () => {
         }
     };
 
+    const handleProtocolChange = (protocol: string | null) => {
+        setSelectedProtocol(protocol);
+        setSelectedType(null);
+        setSelectedDemoOption(null);
+        setJsonData('');
+        setHexData('');
+        setFormattedHex('');
+        setError(null);
+        setTraceData(null);
+        setTraceError(null);
+    };
+
     return {
-        protocols, selectedProtocol, setSelectedProtocol,
+        protocols, selectedProtocol, setSelectedProtocol, handleProtocolChange,
         demoTypeOptions, selectedDemoOption, handleDemoSelect,
         selectedType, setSelectedType,
         definitionTree,
@@ -262,7 +362,8 @@ export const useAsnProcessor = () => {
         setLastEdited,
         handleDecode, handleEncode, loadExample,
         codegenLoading, codegenError, handleCodegen,
-        refreshDefinitions
+        refreshDefinitions,
+        savedMessages, handleSaveMessage, handleDeleteMessage, handleClearMessages
     };
 };
 

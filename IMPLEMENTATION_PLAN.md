@@ -1,6 +1,6 @@
 # ASN.1 Processor - Release 1.0 Implementation Plan
 
-## Current Status: ✅ Release Candidate Ready (v0.1.2)
+## Current Status: ✅ Release Candidate Ready (v0.2.0)
 
 **User Feedback**: Current feature set is sufficient for initial release. Focus shifts to stability, documentation, and release management.
 
@@ -15,6 +15,7 @@
     *   **Platform**: Electron (Desktop App) ✅
     *   **UI Library**: Mantine (with Theming support) ✅
     *   **Editors**: Monaco (Schema), Structured Input (JSON) ✅
+    *   **0x Hex Input**: C-style byte array editing support ✅
 *   **Backend (Engine)**:
     *   **Language**: Python 3.10+ ✅
     *   **API Framework**: FastAPI ✅

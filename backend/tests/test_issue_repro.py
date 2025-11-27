@@ -47,7 +47,8 @@ def test_rrc_encoding_mismatch_repro(client):
     
     # Verify it matches the user's reported error structure
     # "Encoding Error: ... Expected data of type dict, but got ('randomValue', ...)"
-    assert "Expected data of type dict" in error_detail
+    # OR with improved converter: "Sequence member ... not found"
+    assert "Expected data of type dict" in error_detail or "Sequence member" in error_detail
     assert "randomValue" in error_detail
 
 def test_rrc_connection_request_valid(client):

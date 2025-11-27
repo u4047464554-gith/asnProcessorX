@@ -9,13 +9,8 @@ FROM CommonTypes;
 SessionStart ::= SEQUENCE {
     subscriber SubscriberId,
     requested MessageId,
-    payload OCTET STRING (SIZE (1..64))
+    payload OCTET STRING (SIZE (1..64)) OPTIONAL,
+    priority INTEGER OPTIONAL
 }
 
 END
-
-
-
-
-
-

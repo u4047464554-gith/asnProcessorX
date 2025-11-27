@@ -35,6 +35,11 @@ export const AsnService = {
         return res.data;
     },
 
+    async getProtocolMetadata(protocol: string): Promise<{ is_bundled: boolean }> {
+        const res = await axios.get(`/api/asn/protocols/${protocol}/metadata`);
+        return res.data;
+    },
+
     async getTypes(protocol: string): Promise<string[]> {
         const res = await axios.get<string[]>(`/api/asn/protocols/${protocol}/types`);
         return res.data;
@@ -93,6 +98,29 @@ export const AsnService = {
               responseType: 'blob'
           });
           return res.data;
+    },
+
+    // Messages
+    async listSavedMessages(): Promise<string[]> {
+        const res = await axios.get<string[]>('/api/messages');
+        return res.data;
+    },
+    
+    async saveMessage(filename: string, protocol: string, type: string, data: any): Promise<any> {
+        return axios.post('/api/messages', { filename, protocol, type, data });
+    },
+    
+    async loadMessage(filename: string): Promise<any> {
+        const res = await axios.get<any>(`/api/messages/${filename}`);
+        return res.data;
+    },
+    
+    async deleteMessage(filename: string): Promise<any> {
+        return axios.delete(`/api/messages/${filename}`);
+    },
+    
+    async clearMessages(): Promise<any> {
+        return axios.delete('/api/messages');
     }
 };
 

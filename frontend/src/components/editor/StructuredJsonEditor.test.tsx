@@ -24,10 +24,8 @@ describe('StructuredJsonEditor', () => {
     it('renders boolean input', () => {
         const schema: DefinitionNode = { type: 'BOOLEAN', kind: 'Boolean', name: 'bool' };
         renderWithMantine(<StructuredJsonEditor data={true} schema={schema} onChange={mockOnChange} />);
-        expect(screen.getByLabelText('bool')).toBeChecked();
         
-        fireEvent.click(screen.getByLabelText('bool'));
-        expect(mockOnChange).toHaveBeenCalledWith(false);
+        expect(screen.getByText('true')).toBeInTheDocument();
     });
 
     it('renders enumerated input', () => {
@@ -133,17 +131,31 @@ describe('StructuredJsonEditor', () => {
         expect(mockOnChange).toHaveBeenCalledWith({});
     });
 
-    it('handles Tuple input for OCTET STRING', () => {
+    it('handles Tuple input for OCTET STRING (Bytes read-only)', () => {
          const schema: DefinitionNode = { type: 'OCTET STRING', kind: 'OctetString', name: 'oct' };
          renderWithMantine(<StructuredJsonEditor data={["0xAB", 8]} schema={schema} onChange={mockOnChange} />);
          
          const textInput = screen.getByDisplayValue('0xAB');
-         const numInput = screen.getByDisplayValue('8');
+         // Expect byte length (1), not bits (8)
+         const numInput = screen.getByDisplayValue('1');
+         expect(numInput).toHaveAttribute('readonly');
          
          fireEvent.change(textInput, { target: { value: '0xCD' } });
          expect(mockOnChange).toHaveBeenCalledWith(['0xCD', 8]);
-         
-         fireEvent.change(numInput, { target: { value: '16' } });
-         expect(mockOnChange).toHaveBeenCalledWith(['0xAB', 16]);
     });
+
+    it('handles Tuple input for BIT STRING (Bits editable)', () => {
+        const schema: DefinitionNode = { type: 'BIT STRING', kind: 'BitString', name: 'bits' };
+        renderWithMantine(<StructuredJsonEditor data={["0xAB", 8]} schema={schema} onChange={mockOnChange} />);
+        
+        const textInput = screen.getByDisplayValue('0xAB');
+        const numInput = screen.getByDisplayValue('8'); // Bits
+        expect(numInput).not.toHaveAttribute('readonly');
+        
+        fireEvent.change(textInput, { target: { value: '0xCD' } });
+        expect(mockOnChange).toHaveBeenCalledWith(['0xCD', 8]);
+
+        fireEvent.change(numInput, { target: { value: '16' } });
+        expect(mockOnChange).toHaveBeenCalledWith(['0xAB', 16]);
+   });
 });

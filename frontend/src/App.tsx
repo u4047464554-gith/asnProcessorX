@@ -16,9 +16,11 @@ import {
   ScrollArea,
   Box,
   MantineProvider,
-  SegmentedControl
+  SegmentedControl,
+  TextInput,
+  ActionIcon
 } from '@mantine/core'
-import { IconSettings, IconLayoutSidebarRight } from '@tabler/icons-react'
+import { IconSettings, IconLayoutSidebarRight, IconTrash, IconDeviceFloppy, IconDatabase } from '@tabler/icons-react'
 import { BitInspectorPanel } from './components/trace/BitInspectorPanel'
 import { DefinitionTree } from './components/definition/DefinitionTree'
 import { SettingsModal } from './components/SettingsModal'
@@ -28,11 +30,12 @@ import { SchemaEditor } from './components/editor/SchemaEditor'
 import { StructuredJsonEditor } from './components/editor/StructuredJsonEditor'
 import { useAsnProcessor } from './hooks/useAsnProcessor'
 import { hexTo0xHex, xHexToHex, safeParse } from './utils/conversion'
+import { ScratchpadPanel } from './components/ScratchpadPanel'
 
 function App() {
   // Business Logic & State
   const {
-      protocols, selectedProtocol, setSelectedProtocol,
+      protocols, selectedProtocol, handleProtocolChange,
       demoTypeOptions, selectedDemoOption, handleDemoSelect,
       selectedType,
       definitionTree,
@@ -45,7 +48,8 @@ function App() {
       setLastEdited,
       loadExample,
       codegenLoading, codegenError, handleCodegen,
-      refreshDefinitions
+      refreshDefinitions,
+      savedMessages, handleSaveMessage, handleDeleteMessage, handleClearMessages
   } = useAsnProcessor();
 
   // UI State
@@ -54,6 +58,9 @@ function App() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [schemaEditorOpen, setSchemaEditorOpen] = useState(false)
   const [definitionOpen, setDefinitionOpen] = useState(false)
+  const [saveModalOpen, setSaveModalOpen] = useState(false)
+  const [saveFilename, setSaveFilename] = useState('')
+  const [memoryModalOpen, setMemoryModalOpen] = useState(false)
 
   // Theme State
   const [currentThemeName, setCurrentThemeName] = useState<string>(() => {
@@ -74,6 +81,15 @@ function App() {
   const onCodegen = async () => {
       const success = await handleCodegen();
       if (success) setCodegenModalOpen(false);
+  }
+
+  const onSave = async () => {
+      if (!saveFilename) return;
+      const success = await handleSaveMessage(saveFilename);
+      if (success) {
+          setSaveModalOpen(false);
+          setSaveFilename('');
+      }
   }
 
   return (
@@ -134,20 +150,27 @@ function App() {
               placeholder="Select Protocol" 
               data={protocols} 
               value={selectedProtocol}
-              onChange={setSelectedProtocol}
+              onChange={handleProtocolChange}
               searchable
             />
             <Select
-              label="Load Demo Message Type" 
-              placeholder="Select demo message type" 
+              label="Load Message" 
+              placeholder="Select message" 
               data={demoTypeOptions}
               value={selectedDemoOption}
               onChange={handleDemoSelect}
               searchable
-              disabled={!selectedProtocol}
+              disabled={!selectedProtocol && demoTypeOptions.length === 0}
+              style={{ flex: 1 }}
             />
-             <Button variant="light" onClick={loadExample} disabled={!selectedDemoOption} aria-label="Reload Example">
-               Reload Example
+             <Button variant="light" onClick={loadExample} disabled={!selectedDemoOption} aria-label="Reload">
+               Reload
+             </Button>
+             <Button variant="default" onClick={() => setSaveModalOpen(true)} disabled={!jsonData} leftSection={<IconDeviceFloppy size="1rem"/>}>
+               Save
+             </Button>
+             <Button variant="default" onClick={() => setMemoryModalOpen(true)} leftSection={<IconDatabase size="1rem"/>}>
+               Memory
              </Button>
         </Group>
 
@@ -242,16 +265,18 @@ function App() {
                             }}
                           />
                       ) : (
-                          <Box style={{ minHeight: 300 }}>
-                              <StructuredJsonEditor 
-                                  data={safeParse(jsonData)} 
-                                  schema={definitionTree}
-                                  onChange={(newData) => {
-                                       setJsonData(JSON.stringify(newData, null, 2));
-                                       setLastEdited('json');
-                                  }}
-                              />
-                          </Box>
+                          <Paper withBorder={false} style={{ minHeight: 300, display: 'flex', flexDirection: 'column' }}>
+                              <ScrollArea.Autosize mah={600} type="auto" offsetScrollbars>
+                                  <StructuredJsonEditor 
+                                      data={safeParse(jsonData)} 
+                                      schema={definitionTree}
+                                      onChange={(newData) => {
+                                           setJsonData(JSON.stringify(newData, null, 2));
+                                           setLastEdited('json');
+                                      }}
+                                  />
+                              </ScrollArea.Autosize>
+                          </Paper>
                       )}
                     </Stack>
                   </Paper>
@@ -280,6 +305,8 @@ function App() {
             )}
         </Grid>
 
+        <ScratchpadPanel />
+
         <Modal 
             opened={codegenModalOpen} 
             onClose={() => setCodegenModalOpen(false)} 
@@ -305,7 +332,7 @@ function App() {
             </Stack>
         </Modal>
 
-        <SettingsModal 
+            <SettingsModal 
             opened={settingsOpen} 
             onClose={() => setSettingsOpen(false)} 
             currentTheme={currentThemeName}
@@ -313,7 +340,57 @@ function App() {
         />
 
         <Modal 
-            opened={schemaEditorOpen} 
+            opened={saveModalOpen} 
+            onClose={() => setSaveModalOpen(false)} 
+            title="Save Message"
+        >
+            <Stack>
+                <TextInput 
+                    label="Filename" 
+                    placeholder="my_message" 
+                    value={saveFilename} 
+                    onChange={(e) => setSaveFilename(e.currentTarget.value)}
+                    data-autofocus
+                    onKeyDown={(e) => { if(e.key === 'Enter') onSave(); }}
+                />
+                <Group justify="flex-end">
+                    <Button variant="default" onClick={() => setSaveModalOpen(false)}>Cancel</Button>
+                    <Button onClick={onSave}>Save</Button>
+                </Group>
+            </Stack>
+        </Modal>
+
+        <Modal 
+            opened={memoryModalOpen} 
+            onClose={() => setMemoryModalOpen(false)} 
+            title="Memory Locations"
+        >
+            <Stack>
+                {savedMessages.length === 0 ? (
+                    <Text c="dimmed">No saved messages.</Text>
+                ) : (
+                    <ScrollArea h={300}>
+                        <Stack gap="xs">
+                            {savedMessages.map(msg => (
+                                <Group key={msg} justify="space-between" p="xs" bg="var(--mantine-color-body)" style={{ border: '1px solid var(--mantine-color-default-border)' }}>
+                                    <Text size="sm">{msg}</Text>
+                                    <ActionIcon color="red" variant="subtle" onClick={() => handleDeleteMessage(msg)}>
+                                        <IconTrash size="1rem"/>
+                                    </ActionIcon>
+                                </Group>
+                            ))}
+                        </Stack>
+                    </ScrollArea>
+                )}
+                <Group justify="space-between" mt="md">
+                    <Button color="red" variant="subtle" onClick={handleClearMessages}>Clear All Memory</Button>
+                    <Button onClick={() => setMemoryModalOpen(false)}>Close</Button>
+                </Group>
+            </Stack>
+        </Modal>
+
+        <Modal 
+            opened={schemaEditorOpen}
             onClose={() => setSchemaEditorOpen(false)} 
             title={`Schema Editor: ${selectedProtocol}`}
             fullScreen

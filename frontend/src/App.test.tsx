@@ -35,6 +35,7 @@ describe('App View', () => {
     const mockHook = {
         protocols: ['p1'],
         selectedProtocol: null,
+        handleProtocolChange: vi.fn(),
         setSelectedProtocol: vi.fn(),
         demoTypeOptions: [],
         selectedDemoOption: null,
@@ -62,6 +63,11 @@ describe('App View', () => {
         codegenLoading: false,
         codegenError: null,
         handleCodegen: vi.fn(),
+        refreshDefinitions: vi.fn(),
+        savedMessages: [],
+        handleSaveMessage: vi.fn(),
+        handleDeleteMessage: vi.fn(),
+        handleClearMessages: vi.fn(),
     };
 
     beforeEach(() => {
@@ -81,7 +87,7 @@ describe('App View', () => {
         render(<App />);
         expect(screen.getByLabelText('Edit Schema')).toBeDisabled();
         expect(screen.getByLabelText('Generate C Stubs')).toBeDisabled();
-        expect(screen.getByLabelText('Reload Example')).toBeDisabled();
+        expect(screen.getByLabelText('Reload')).toBeDisabled();
     });
 
     it('enables buttons when protocol selected', () => {
@@ -89,7 +95,7 @@ describe('App View', () => {
         render(<App />);
         expect(screen.getByLabelText('Edit Schema')).not.toBeDisabled();
         expect(screen.getByLabelText('Generate C Stubs')).not.toBeDisabled();
-        expect(screen.getByLabelText('Reload Example')).not.toBeDisabled();
+        expect(screen.getByLabelText('Reload')).not.toBeDisabled();
     });
 
     it('opens codegen modal and calls handleCodegen', async () => {
@@ -193,7 +199,7 @@ describe('App View', () => {
         (useAsnProcessor as any).mockReturnValue({ ...mockHook, selectedProtocol: 'p1', selectedDemoOption: 'opt', loadExample });
         render(<App />);
         
-        fireEvent.click(screen.getByLabelText('Reload Example'));
+        fireEvent.click(screen.getByLabelText('Reload'));
         expect(loadExample).toHaveBeenCalled();
     });
 

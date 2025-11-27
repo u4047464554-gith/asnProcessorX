@@ -1,0 +1,8 @@
+{
+    "subscriber": {
+        "mcc": 244,
+        "mnc": 5,
+        "msin": "0102030405"
+    },
+    "requested": "attachRequest"
+}
