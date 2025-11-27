@@ -313,7 +313,7 @@ function NodeRenderer({ node, value, onChange, level, path, label, isOptionalGho
         // If value is string, treat as hex, length = hex.length * 4 (approx)
         const isTuple = Array.isArray(value);
         const hexVal = isTuple ? value[0] : (typeof value === 'string' ? value : '');
-        const bitLen = isTuple ? value[1] : (hexVal.length * 4); // Default estimation
+        const bitLen = isTuple ? value[1] : (hexVal.replace(/^0x/i, '').length * 4); // Default estimation from hex length
 
         return (
              <Box ml={level * 16} mb={4}>
