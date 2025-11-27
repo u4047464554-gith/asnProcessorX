@@ -1,77 +1,88 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import { StructuredJsonEditor } from './StructuredJsonEditor';
-import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { MantineProvider } from '@mantine/core';
+import { vi } from 'vitest';
 import type { DefinitionNode } from '../definition/types';
 
-// Wrapper for Mantine components
 const renderWithMantine = (ui: React.ReactNode) => {
-    return render(
-        <MantineProvider>{ui}</MantineProvider>
-    );
+    return render(<MantineProvider>{ui}</MantineProvider>);
 };
 
 describe('StructuredJsonEditor', () => {
     const mockOnChange = vi.fn();
-    
+
     beforeEach(() => {
         mockOnChange.mockClear();
-        localStorage.clear();
     });
 
-    it('renders simple integer input', () => {
+    it('renders integer input', () => {
         const schema: DefinitionNode = { type: 'INTEGER', kind: 'Integer', name: 'testInt' };
-        renderWithMantine(<StructuredJsonEditor data={123} schema={schema} onChange={mockOnChange} />);
-        
-        expect(screen.getByDisplayValue('123')).toBeInTheDocument();
+        renderWithMantine(<StructuredJsonEditor data={42} schema={schema} onChange={mockOnChange} />);
+        expect(screen.getByDisplayValue('42')).toBeInTheDocument();
     });
 
-    it('renders sequence with children', () => {
+    it('handles SEQUENCE OF add and remove', () => {
         const schema: DefinitionNode = {
-            type: 'SEQUENCE',
-            kind: 'Sequence',
-            name: 'root',
-            children: [
-                { type: 'INTEGER', kind: 'Integer', name: 'child1' }
-            ]
+            type: 'SEQUENCE OF', kind: 'SequenceOf', name: 'list',
+            children: [{ type: 'INTEGER', kind: 'Integer', name: 'item' }]
         };
-        const data = { child1: 456 };
-        renderWithMantine(<StructuredJsonEditor data={data} schema={schema} onChange={mockOnChange} />);
+        renderWithMantine(<StructuredJsonEditor data={[10]} schema={schema} onChange={mockOnChange} />);
         
-        expect(screen.getByText('root')).toBeInTheDocument();
-        expect(screen.getByText('child1')).toBeInTheDocument();
-        expect(screen.getByDisplayValue('456')).toBeInTheDocument();
-    });
+        expect(screen.getByDisplayValue('10')).toBeInTheDocument();
+        
+        // Add item
+        fireEvent.click(screen.getByLabelText('Add item'));
+        expect(mockOnChange).toHaveBeenCalledWith([10, 0]);
 
-    it('renders optional ghost field', () => {
-        const schema: DefinitionNode = {
-            type: 'SEQUENCE',
-            kind: 'Sequence',
-            children: [
-                { type: 'INTEGER', kind: 'Integer', name: 'optField', optional: true }
-            ]
-        };
-        const data = {};
-        renderWithMantine(<StructuredJsonEditor data={data} schema={schema} onChange={mockOnChange} />);
-        
-        // Should show OPTIONAL badge
-        expect(screen.getByText('OPTIONAL')).toBeInTheDocument();
-        expect(screen.getByText('optField')).toBeInTheDocument();
-        
-        // Click to activate (Text element has onClick)
-        fireEvent.click(screen.getByText('optField'));
-        
-        // Should call onChange with default 0 for Integer
-        expect(mockOnChange).toHaveBeenCalledWith({ optField: 0 });
+        // Remove item
+        fireEvent.click(screen.getByLabelText('Remove item'));
+        expect(mockOnChange).toHaveBeenCalledWith([]);
     });
     
-    it('renders tuple input for OCTET STRING', () => {
-         const schema: DefinitionNode = { type: 'OCTET STRING', kind: 'OctetString', name: 'data' };
-         const data = ["0xAB", 8];
-         renderWithMantine(<StructuredJsonEditor data={data} schema={schema} onChange={mockOnChange} />);
+    it('handles Optional field activation and removal', () => {
+        const schema: DefinitionNode = {
+            type: 'SEQUENCE', kind: 'Sequence', name: 'root',
+            children: [
+                { name: 'optField', type: 'INTEGER', kind: 'Integer', optional: true }
+            ]
+        };
+        
+        const { rerender } = renderWithMantine(
+            <StructuredJsonEditor data={{}} schema={schema} onChange={mockOnChange} />
+        );
+        
+        expect(screen.getByText('optField')).toBeInTheDocument();
+        expect(screen.getByText('OPTIONAL')).toBeInTheDocument();
+        
+        fireEvent.click(screen.getByLabelText('Activate field'));
+        expect(mockOnChange).toHaveBeenCalledWith({ optField: 0 });
+        
+        rerender(
+            <MantineProvider>
+                <StructuredJsonEditor data={{ optField: 123 }} schema={schema} onChange={mockOnChange} />
+            </MantineProvider>
+        );
+        expect(screen.getByDisplayValue('123')).toBeInTheDocument();
+        
+        fireEvent.click(screen.getByLabelText('Remove field'));
+        // onChange calls parent handler. Parent handler sees 'undefined' and deletes key.
+        // But here we mock the top-level onChange.
+        // The component logic: NodeRenderer(SEQUENCE) -> handleChildChange -> onChange(newObj)
+        // So it should be called with {}
+        expect(mockOnChange).toHaveBeenCalledWith({});
+    });
+
+    it('handles Tuple input for OCTET STRING', () => {
+         const schema: DefinitionNode = { type: 'OCTET STRING', kind: 'OctetString', name: 'oct' };
+         renderWithMantine(<StructuredJsonEditor data={["0xAB", 8]} schema={schema} onChange={mockOnChange} />);
          
-         expect(screen.getByDisplayValue('0xAB')).toBeInTheDocument();
-         expect(screen.getByDisplayValue('8')).toBeInTheDocument();
+         const textInput = screen.getByDisplayValue('0xAB');
+         const numInput = screen.getByDisplayValue('8');
+         
+         fireEvent.change(textInput, { target: { value: '0xCD' } });
+         expect(mockOnChange).toHaveBeenCalledWith(['0xCD', 8]);
+         
+         fireEvent.change(numInput, { target: { value: '16' } });
+         expect(mockOnChange).toHaveBeenCalledWith(['0xAB', 16]);
     });
 });
-

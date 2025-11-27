@@ -107,7 +107,7 @@ function NodeRenderer({ node, value, onChange, level, path, label, isOptionalGho
 
         return (
             <Group ml={level * 16} py={4} style={{ opacity: 0.5 }}>
-                <ActionIcon variant="subtle" size="xs" color="gray" onClick={handleActivate}>
+                <ActionIcon variant="subtle" size="xs" color="gray" onClick={handleActivate} aria-label="Activate field">
                     <IconPlus size="0.8rem" />
                 </ActionIcon>
                 <Text component="div" size="sm" c="dimmed" style={{ cursor: 'pointer' }} onClick={handleActivate}>
@@ -205,7 +205,7 @@ function NodeRenderer({ node, value, onChange, level, path, label, isOptionalGho
                     </ThemeIcon>
                     <Text fw={500} size="sm">{fieldName}</Text>
                     <Text size="xs" c="dimmed">[{arrValue.length}]</Text>
-                    <ActionIcon size="xs" variant="subtle" onClick={handleAdd}><IconPlus size="0.8rem"/></ActionIcon>
+                    <ActionIcon size="xs" variant="subtle" onClick={handleAdd} aria-label="Add item"><IconPlus size="0.8rem"/></ActionIcon>
                 </Group>
                 <Collapse in={expanded}>
                      <Stack gap={2} style={{ borderLeft: '1px solid var(--mantine-color-default-border)', marginLeft: 7 }}>
@@ -222,11 +222,11 @@ function NodeRenderer({ node, value, onChange, level, path, label, isOptionalGho
                                              label={`Item ${idx + 1}`}
                                          />
                                      ) : <Text size="xs" c="red">Unknown Item Type</Text>}
-                                 </Box>
-                                 <ActionIcon color="red" variant="subtle" size="xs" mt={4} onClick={() => handleRemove(idx)}>
-                                     <IconTrash size="0.8rem"/>
-                                 </ActionIcon>
-                             </Group>
+                                </Box>
+                                <ActionIcon color="red" variant="subtle" size="xs" mt={4} onClick={() => handleRemove(idx)} aria-label="Remove item">
+                                    <IconTrash size="0.8rem"/>
+                                </ActionIcon>
+                            </Group>
                          ))}
                      </Stack>
                 </Collapse>
@@ -300,7 +300,7 @@ function NodeRenderer({ node, value, onChange, level, path, label, isOptionalGho
         <Group gap="xs" mb={2} style={{ minWidth: 150 }}>
             <Text size="sm">{fieldName}</Text>
             <Text size="xs" c="dimmed">({node.type})</Text>
-            {node.optional && <ActionIcon size="xs" color="red" variant="subtle" onClick={() => onChange(undefined)}><IconTrash size="0.7rem"/></ActionIcon>}
+            {node.optional && <ActionIcon size="xs" color="red" variant="subtle" onClick={() => onChange(undefined)} aria-label="Remove field"><IconTrash size="0.7rem"/></ActionIcon>}
         </Group>
     );
 

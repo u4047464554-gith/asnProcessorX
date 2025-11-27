@@ -238,8 +238,8 @@ export function SchemaEditor({ protocol }: SchemaEditorProps) {
             {/* Toolbar */}
             <Group justify="space-between" p="xs" style={{ borderBottom: '1px solid var(--mantine-color-default-border)', flexShrink: 0 }} bg="var(--mantine-color-body)">
                 <Group gap="xs">
-                    <Button variant="light" size="xs" leftSection={<IconPlus size="1rem"/>} onClick={openCreateFileModal}>New File</Button>
-                    <ActionIcon variant="light" size="md" onClick={() => { fetchFiles(); fetchDefinitions(); }} title="Refresh">
+                    <Button variant="light" size="xs" leftSection={<IconPlus size="1rem"/>} onClick={openCreateFileModal} aria-label="Create new file">New File</Button>
+                    <ActionIcon variant="light" size="md" onClick={() => { fetchFiles(); fetchDefinitions(); }} title="Refresh" aria-label="Refresh files">
                         <IconRefresh size="1rem"/>
                     </ActionIcon>
                     <Text size="sm" c="dimmed">|</Text>
@@ -252,6 +252,7 @@ export function SchemaEditor({ protocol }: SchemaEditorProps) {
                         leftSection={<IconCamera size="1rem"/>}
                         disabled={!selectedFile}
                         onClick={handleSnapshot}
+                        aria-label="Create snapshot"
                     >
                         Snapshot
                     </Button>
@@ -261,6 +262,7 @@ export function SchemaEditor({ protocol }: SchemaEditorProps) {
                         disabled={!isDirty || !selectedFile}
                         loading={saving}
                         onClick={handleSave}
+                        aria-label="Save file"
                     >
                         Save
                     </Button>
