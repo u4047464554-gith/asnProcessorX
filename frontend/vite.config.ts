@@ -12,4 +12,16 @@ export default defineConfig({
       reporter: ['text', 'html'],
     },
   },
+  build: {
+    chunkSizeWarningLimit: 1000,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom', 'axios', 'zustand'],
+          mantine: ['@mantine/core', '@mantine/hooks', '@tabler/icons-react'],
+          monaco: ['monaco-editor', '@monaco-editor/react'],
+        },
+      },
+    },
+  },
 })

@@ -28,4 +28,4 @@ app.include_router(files.router, prefix="/api/files", tags=["files"])
 
 @app.get("/health")
 async def health_check():
-    return {"status": "ok", "version": "0.1.0"}
+    return {"status": "ok", "version": "0.2.0"}

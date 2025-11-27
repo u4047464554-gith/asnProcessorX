@@ -39,11 +39,11 @@ function App() {
       hexData, setHexData,
       jsonData, setJsonData,
       base64Data, setBase64Data,
-      error, loading,
+      error,
       traceData, traceLoading, traceError,
       editorMode, setEditorMode,
       setLastEdited,
-      handleDecode, handleEncode, loadExample,
+      loadExample,
       codegenLoading, codegenError, handleCodegen
   } = useAsnProcessor();
 

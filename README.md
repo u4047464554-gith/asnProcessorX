@@ -33,6 +33,28 @@ Download the latest installer from the [Releases Page](https://github.com/u40474
 
 **Note on C Codegen**: The "Generate C Stubs" feature requires the `asn1c` binary to be installed on your system and available in the system PATH. If missing, you will see a 503 error message.
 
+## User Guide
+
+### 1. Basic Operation
+- **Select Protocol**: Use the top-left dropdown to choose the ASN.1 protocol (e.g., `rrc_demo`).
+- **Select Message Type**: Choose the specific message you want to work with (e.g., `RRCConnectionRequest`).
+- **View Definition**: The "Definition Tree" panel shows the structure of the selected type.
+
+### 2. Decoding (Hex to JSON)
+1.  Paste your Hex string into the **Hex Input** box (e.g., `8005...`).
+2.  The **JSON Input** box will automatically update with the decoded structure.
+3.  The **Bit Inspector** (right panel) will visualize how the bits map to the fields.
+
+### 3. Encoding (JSON to Hex)
+1.  Edit the JSON in the **JSON Input** box. You can use the "Structured" editor for a form-based view or "Raw" for direct text editing.
+2.  The **Hex Input** box will automatically update with the re-encoded binary data.
+
+### 4. Editing Schemas
+1.  Click **Edit Schema** in the top bar.
+2.  Select a file from the left list.
+3.  Make changes to the ASN.1 definition.
+4.  Click **Save** to apply changes (triggers a hot reload) or **Snapshot** to save a backup.
+
 ## Development Setup
 
 ### Prerequisites
@@ -107,10 +129,37 @@ Example structure:
     MyMessage.json  <- Will be loaded as "MyMessage (Custom Example)"
 ```
 
-## API Documentation
+## API Integration (FastAPI)
 
-The backend exposes a REST API documented in `API.md`. 
-When running the backend, visit `http://localhost:8000/docs` for the interactive Swagger UI.
+The backend exposes a robust REST API (powered by **FastAPI**) that allows external tools to integrate with the ASN.1 engine over HTTP/IP. This enables workflows where other applications (e.g., log analyzers, test runners) offload ASN.1 processing to this service.
+
+### Key Use Case: Hex -> JSON Decoding
+Tools that capture binary streams can use this API to decode messages programmatically.
+
+**Endpoint**: `POST /api/asn/decode`
+
+**Request**:
+```json
+{
+  "hex_data": "400092000148454c4c4f80",
+  "protocol": "multi_file_demo",
+  "type_name": "SessionStart",
+  "encoding_rule": "per"
+}
+```
+
+**Response**:
+```json
+{
+  "status": "success",
+  "decoded": {
+    "subscriber": { "mcc": 246, "mnc": 1 },
+    "payload": "0x48454c4c4f"
+  }
+}
+```
+
+Full interactive documentation (Swagger UI) is available at `http://localhost:8000/docs` when the service is running. See `API.md` for detailed endpoint references.
 
 ## Quality Checks
 
