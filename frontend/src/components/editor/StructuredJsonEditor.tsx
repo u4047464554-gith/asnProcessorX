@@ -110,7 +110,7 @@ function NodeRenderer({ node, value, onChange, level, path, label, isOptionalGho
                 <ActionIcon variant="subtle" size="xs" color="gray" onClick={handleActivate}>
                     <IconPlus size="0.8rem" />
                 </ActionIcon>
-                <Text size="sm" c="dimmed" style={{ cursor: 'pointer' }} onClick={handleActivate}>
+                <Text component="div" size="sm" c="dimmed" style={{ cursor: 'pointer' }} onClick={handleActivate}>
                     {fieldName} <Badge size="xs" variant="outline" color="gray">OPTIONAL</Badge>
                 </Text>
             </Group>
