@@ -57,9 +57,10 @@ class AsnManager:
                     
         return paths
 
-    def load_protocols(self):
+    def load_protocols(self) -> Dict[str, str]:
         """
         Scans all configured specs directories.
+        Returns a dict of protocol_name -> error_message for any failures.
         """
         search_paths = self._resolve_specs_paths()
         print(f"[AsnManager] Scanning paths: {search_paths}")
@@ -67,6 +68,8 @@ class AsnManager:
         self.compilers.clear()
         self.metadata.clear()
         self.examples.clear()
+
+        errors = {}
 
         for specs_dir in search_paths:
             if not os.path.isdir(specs_dir):
@@ -112,14 +115,17 @@ class AsnManager:
                         print(f"Successfully compiled {protocol}")
                     except Exception as e:
                         print(f"Error compiling {protocol}: {e}")
+                        errors[protocol] = str(e)
+        
+        return errors
 
     def get_compiler(self, protocol: str) -> Optional[asn1tools.compiler.Specification]:
         return self.compilers.get(protocol)
 
-    def reload(self):
+    def reload(self) -> Dict[str, str]:
         # Reload config in case it changed
         config_manager.reload()
-        self.load_protocols()
+        return self.load_protocols()
 
     def list_protocols(self) -> List[str]:
         return list(self.compilers.keys())

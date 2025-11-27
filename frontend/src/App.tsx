@@ -44,7 +44,8 @@ function App() {
       editorMode, setEditorMode,
       setLastEdited,
       loadExample,
-      codegenLoading, codegenError, handleCodegen
+      codegenLoading, codegenError, handleCodegen,
+      refreshDefinitions
   } = useAsnProcessor();
 
   // UI State
@@ -319,7 +320,7 @@ function App() {
             padding={0}
         >
              <Box h="calc(100vh - 60px)">
-                 {selectedProtocol && <SchemaEditor protocol={selectedProtocol} />}
+                 {selectedProtocol && <SchemaEditor protocol={selectedProtocol} onSchemaUpdated={refreshDefinitions} />}
              </Box>
         </Modal>
       </AppShell.Main>

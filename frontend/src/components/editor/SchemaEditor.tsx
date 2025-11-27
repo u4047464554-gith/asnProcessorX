@@ -9,6 +9,7 @@ import Editor, { type Monaco } from '@monaco-editor/react';
 
 interface SchemaEditorProps {
     protocol: string;
+    onSchemaUpdated?: () => void;
 }
 
 const SNIPPETS = [
@@ -50,7 +51,7 @@ const SNIPPETS = [
     }
 ];
 
-export function SchemaEditor({ protocol }: SchemaEditorProps) {
+export function SchemaEditor({ protocol, onSchemaUpdated }: SchemaEditorProps) {
     const { colorScheme } = useMantineColorScheme();
     const [files, setFiles] = useState<string[]>([]);
     const [selectedFile, setSelectedFile] = useState<string | null>(null);
@@ -114,9 +115,15 @@ export function SchemaEditor({ protocol }: SchemaEditorProps) {
         if (!selectedFile) return;
         setSaving(true);
         try {
-            await axios.put(`/api/files/protocols/${protocol}/files/${selectedFile}`, { content });
+            const res = await axios.put(`/api/files/protocols/${protocol}/files/${selectedFile}`, { content });
             setIsDirty(false);
             fetchDefinitions(); // Refresh defs
+            
+            if (res.data.status === 'warning') {
+                alert(res.data.message);
+            }
+
+            onSchemaUpdated?.();
         } catch (err) {
             console.error("Failed to save", err);
             alert("Failed to save file");

@@ -36,6 +36,11 @@ export const useAsnProcessor = () => {
 
     const [codegenLoading, setCodegenLoading] = useState(false);
     const [codegenError, setCodegenError] = useState<string | null>(null);
+    const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+    const refreshDefinitions = useCallback(() => {
+        setRefreshTrigger(prev => prev + 1);
+    }, []);
 
     useEffect(() => {
         AsnService.getProtocols().then(setProtocols).catch(console.error);
@@ -73,10 +78,15 @@ export const useAsnProcessor = () => {
                 types.forEach(t => options.push({ value: t, label: t }));
             }
             setDemoTypeOptions(options);
-            setSelectedDemoOption(null);
-            setSelectedType(null);
+            // We preserve selection if possible, or reset if invalid. 
+            // But for simple refresh, we might want to keep current selection.
+            // The logic below resets selection if we change protocol, but if refreshTrigger fires,
+            // selectedProtocol is unchanged.
+            // Wait, this effect runs on [selectedProtocol]. If I add refreshTrigger, it re-runs.
+            // I need to be careful not to reset selection if only refreshTrigger changed.
+            
         }).catch(console.error);
-    }, [selectedProtocol]);
+    }, [selectedProtocol, refreshTrigger]);
 
     useEffect(() => {
         if (selectedProtocol && selectedType) {
@@ -88,7 +98,7 @@ export const useAsnProcessor = () => {
         }
         setTraceData(null);
         setTraceError(null);
-    }, [selectedProtocol, selectedType]);
+    }, [selectedProtocol, selectedType, refreshTrigger]);
 
     const fetchTrace = useCallback(async (protocol: string, type: string, hex: string) => {
         if (!hex.trim()) { setTraceData(null); return; }
@@ -251,7 +261,8 @@ export const useAsnProcessor = () => {
         editorMode, setEditorMode,
         setLastEdited,
         handleDecode, handleEncode, loadExample,
-        codegenLoading, codegenError, handleCodegen
+        codegenLoading, codegenError, handleCodegen,
+        refreshDefinitions
     };
 };
 

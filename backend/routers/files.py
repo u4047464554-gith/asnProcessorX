@@ -63,7 +63,15 @@ async def write_file(protocol: str, filename: str, body: FileContent):
         raise HTTPException(500, str(e))
     
     # Trigger reload so changes take effect in the compiler
-    manager.reload()
+    errors = manager.reload()
+    if protocol in errors:
+         # We return 200 because the file WAS saved, but we warn the user
+         return {
+             "status": "warning",
+             "message": f"File saved, but compilation failed: {errors[protocol]}",
+             "error": errors[protocol]
+         }
+
     return {"status": "success"}
 
 @router.post("/protocols/{protocol}/files")
@@ -90,7 +98,13 @@ async def create_file(protocol: str, body: CreateFileRequest):
     except Exception as e:
         raise HTTPException(500, str(e))
         
-    manager.reload()
+    errors = manager.reload()
+    if protocol in errors:
+         return {
+             "status": "warning",
+             "message": f"File created, but compilation failed: {errors[protocol]}",
+             "error": errors[protocol]
+         }
     return {"status": "success"}
 
 @router.get("/protocols/{protocol}/definitions")
