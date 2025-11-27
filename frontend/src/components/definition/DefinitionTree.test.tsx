@@ -34,10 +34,8 @@ describe('DefinitionTree', () => {
 
     it('renders children when expanded', () => {
         renderWithMantine(<DefinitionTree root={rootNode} />);
-        // Root is expanded by default (depth < 1)
         expect(screen.getByText('child1')).toBeInTheDocument();
         expect(screen.getByText('INTEGER')).toBeInTheDocument();
-        // Mantine Text might break up text, check partial match
         expect(screen.getByText(/range: \[0, 10\]/)).toBeInTheDocument();
     });
 
@@ -67,5 +65,22 @@ describe('DefinitionTree', () => {
         
         expect(screen.getByText('leaf')).toBeInTheDocument();
     });
-});
 
+    it('renders default value badge', () => {
+        const node: DefinitionNode = { ...rootNode, children: [], default: 42 };
+        renderWithMantine(<DefinitionTree root={node} />);
+        expect(screen.getByText('DEFAULT 42')).toBeInTheDocument();
+    });
+
+    it('renders size constraint', () => {
+        const node: DefinitionNode = { ...rootNode, children: [], constraints: { size: { min: 1, max: 5 } } };
+        renderWithMantine(<DefinitionTree root={node} />);
+        expect(screen.getByText('size: [1, 5]')).toBeInTheDocument();
+    });
+
+    it('renders value constraint', () => {
+        const node: DefinitionNode = { ...rootNode, children: [], constraints: { value: 10 } };
+        renderWithMantine(<DefinitionTree root={node} />);
+        expect(screen.getByText('value: 10')).toBeInTheDocument();
+    });
+});

@@ -13,7 +13,7 @@ const formatConstraints = (constraints?: Record<string, unknown>) => {
     return null
   }
   const entries = Object.entries(constraints).map(([key, value]) => {
-    if (key === 'range' && value && typeof value === 'object') {
+    if ((key === 'range' || key === 'size') && value && typeof value === 'object') {
       const min = (value as Record<string, unknown>).min ?? '…'
       const max = (value as Record<string, unknown>).max ?? '…'
       return `${key}: [${min}, ${max}]`

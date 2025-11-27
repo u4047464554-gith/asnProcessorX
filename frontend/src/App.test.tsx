@@ -1,12 +1,12 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import App from './App';
 import { vi } from 'vitest';
-import axios from 'axios';
+import { useAsnProcessor } from './hooks/useAsnProcessor';
 
-vi.mock('axios');
+vi.mock('./hooks/useAsnProcessor');
 vi.mock('./components/StarTrekShip', () => ({ StarTrekShip: () => <div data-testid="ship" /> }));
 
-// Mock resize observer for Mantine
+// Mock resize observer
 class ResizeObserver {
   observe() {}
   unobserve() {}
@@ -21,87 +21,207 @@ Object.defineProperty(window, 'matchMedia', {
     matches: false,
     media: query,
     onchange: null,
-    addListener: vi.fn(), // deprecated
-    removeListener: vi.fn(), // deprecated
+    addListener: vi.fn(), 
+    removeListener: vi.fn(),
     addEventListener: vi.fn(),
     removeEventListener: vi.fn(),
     dispatchEvent: vi.fn(),
   })),
 });
 
-global.fetch = vi.fn();
+describe('App View', () => {
+    const mockHook = {
+        protocols: ['p1'],
+        selectedProtocol: null,
+        setSelectedProtocol: vi.fn(),
+        demoTypeOptions: [],
+        selectedDemoOption: null,
+        handleDemoSelect: vi.fn(),
+        selectedType: null,
+        setSelectedType: vi.fn(),
+        definitionTree: null,
+        hexData: '',
+        setHexData: vi.fn(),
+        jsonData: '',
+        setJsonData: vi.fn(),
+        base64Data: '',
+        setBase64Data: vi.fn(),
+        error: null,
+        loading: false,
+        traceData: null,
+        traceLoading: false,
+        traceError: null,
+        editorMode: 'structured',
+        setEditorMode: vi.fn(),
+        setLastEdited: vi.fn(),
+        handleDecode: vi.fn(),
+        handleEncode: vi.fn(),
+        loadExample: vi.fn(),
+        codegenLoading: false,
+        codegenError: null,
+        handleCodegen: vi.fn(),
+    };
 
-describe('App Integration', () => {
     beforeEach(() => {
         vi.clearAllMocks();
-        (axios.get as any).mockImplementation((url: string) => {
-             if (url.endsWith('/api/config')) return Promise.resolve({ data: { specs_directories: [] } });
-             if (url.endsWith('/api/asn/protocols')) return Promise.resolve({ data: ['proto1'] });
-             if (url.includes('/types/')) return Promise.resolve({ data: { tree: { name: 'Msg', type: 'SEQUENCE', children: [] } } }); // For DefinitionTree
-             if (url.includes('/types')) return Promise.resolve({ data: ['Msg1'] });
-             if (url.includes('/examples')) return Promise.resolve({ data: { 'Msg1': { type: 'Msg1', data: {} } } });
-             return Promise.resolve({ data: {} });
-        });
-        (axios.post as any).mockImplementation((url: string) => {
-             if (url.endsWith('/decode')) return Promise.resolve({ data: { status: 'success', data: { field: 1 }, decoded_type: 'Msg1' } });
-             if (url.endsWith('/encode')) return Promise.resolve({ data: { status: 'success', hex_data: 'AABB' } });
-             if (url.endsWith('/trace')) return Promise.resolve({ data: { trace: {}, total_bits: 16 } });
-             return Promise.resolve({ data: {} });
-        });
+        (useAsnProcessor as any).mockReturnValue(mockHook);
     });
 
-    it('renders main layout and loads protocols', async () => {
+    it('renders main layout', () => {
         render(<App />);
         expect(screen.getByText('ASN.1 Processor')).toBeInTheDocument();
-        
-        await waitFor(() => {
-             expect(screen.getByPlaceholderText('Select Protocol')).toBeInTheDocument();
-        });
     });
-    
-    it('handles hex input and conversion', async () => {
+
+    it('disables buttons when no protocol selected', () => {
+        render(<App />);
+        expect(screen.getByLabelText('Edit Schema')).toBeDisabled();
+        expect(screen.getByLabelText('Generate C Stubs')).toBeDisabled();
+        expect(screen.getByLabelText('Reload Example')).toBeDisabled();
+    });
+
+    it('enables buttons when protocol selected', () => {
+        (useAsnProcessor as any).mockReturnValue({ ...mockHook, selectedProtocol: 'p1', selectedDemoOption: 'opt' });
+        render(<App />);
+        expect(screen.getByLabelText('Edit Schema')).not.toBeDisabled();
+        expect(screen.getByLabelText('Generate C Stubs')).not.toBeDisabled();
+        expect(screen.getByLabelText('Reload Example')).not.toBeDisabled();
+    });
+
+    it('opens codegen modal and calls handleCodegen', async () => {
+        const handleCodegen = vi.fn().mockResolvedValue(true);
+        (useAsnProcessor as any).mockReturnValue({ ...mockHook, selectedProtocol: 'p1', handleCodegen });
         render(<App />);
         
-        // Select Protocol (simulate) - interacting with Mantine Select is hard, 
-        // but we can assume if user types hex without protocol it just updates state.
-        // But decode requires protocol.
+        fireEvent.click(screen.getByLabelText('Generate C Stubs'));
+        await waitFor(() => expect(screen.getByText(/Generate C Stubs for/)).toBeInTheDocument());
         
-        const hexInput = screen.getByPlaceholderText('80 05 ...');
-        fireEvent.change(hexInput, { target: { value: 'AABB' } });
-        
-        expect(hexInput).toHaveValue('AABB');
-        
-        // Base64 should update
-        const b64Input = screen.getByPlaceholderText('Base64 representation');
-        expect(b64Input).toHaveValue('qrs='); // AABB -> qrs= (Base64)
-    });
-    
-    it('opens settings modal', async () => {
-        render(<App />);
-        const btn = screen.getByLabelText('Settings');
-        fireEvent.click(btn);
-        
-        await waitFor(() => {
-            expect(screen.getByText('Settings')).toBeInTheDocument();
-        });
+        fireEvent.click(screen.getByText('Generate & Download'));
+        await waitFor(() => expect(handleCodegen).toHaveBeenCalled());
     });
 
     it('opens schema editor', async () => {
+        (useAsnProcessor as any).mockReturnValue({ ...mockHook, selectedProtocol: 'p1' });
         render(<App />);
-        // Needs protocol selected to be enabled? Yes.
-        // We can mock the state or just try to click it.
-        // But button is disabled if !selectedProtocol.
+        fireEvent.click(screen.getByLabelText('Edit Schema'));
+        await waitFor(() => expect(screen.getByText(/Schema Editor: p1/)).toBeInTheDocument());
+    });
+
+    it('toggles inspector', async () => {
+        render(<App />);
+        expect(screen.getByText('Bit Inspector')).toBeInTheDocument();
+        fireEvent.click(screen.getByLabelText('Toggle Inspector'));
+        await waitFor(() => expect(screen.queryByText('Bit Inspector')).not.toBeInTheDocument());
+    });
+
+    it('opens settings modal', async () => {
+        render(<App />);
+        fireEvent.click(screen.getByLabelText('Settings'));
+        await waitFor(() => expect(screen.getByText('Settings')).toBeInTheDocument());
+    });
+
+    it('handles hex input changes', () => {
+        const setHexData = vi.fn();
+        const setBase64Data = vi.fn();
+        const setLastEdited = vi.fn();
+        (useAsnProcessor as any).mockReturnValue({ ...mockHook, setHexData, setBase64Data, setLastEdited });
         
-        // Let's mock useState? No, integration test.
-        // We need to select a protocol.
-        // Mantine Select is a hidden input.
-        // We can find the input by label and change it?
-        // <input name="Protocol" ... />
-        // Mantine Select structure:
-        // Input wrapper -> Input
+        render(<App />);
         
-        // Let's try to click the input and click an option.
-        // Protocol select:
-        // Placeholder: "Select Protocol"
+        const hexInput = screen.getByPlaceholderText('80 05 ...');
+        fireEvent.change(hexInput, { target: { value: 'AA' } });
+        
+        expect(setHexData).toHaveBeenCalledWith('AA');
+        expect(setBase64Data).toHaveBeenCalled();
+        expect(setLastEdited).toHaveBeenCalledWith('hex');
+    });
+
+    it('handles Base64 user input', () => {
+        const setBase64Data = vi.fn();
+        const setHexData = vi.fn();
+        const setLastEdited = vi.fn();
+        (useAsnProcessor as any).mockReturnValue({ ...mockHook, setBase64Data, setHexData, setLastEdited });
+        render(<App />);
+        
+        const input = screen.getByPlaceholderText('Base64 representation');
+        fireEvent.change(input, { target: { value: 'SGVsbG8=' } });
+        
+        expect(setBase64Data).toHaveBeenCalledWith('SGVsbG8=');
+        expect(setHexData).toHaveBeenCalled(); 
+        expect(setLastEdited).toHaveBeenCalledWith('hex');
+    });
+
+    it('handles Raw JSON user input', () => {
+        const setJsonData = vi.fn();
+        const setLastEdited = vi.fn();
+        (useAsnProcessor as any).mockReturnValue({ ...mockHook, editorMode: 'raw', setJsonData, setLastEdited });
+        render(<App />);
+        
+        const input = screen.getByPlaceholderText('{ ... }');
+        fireEvent.change(input, { target: { value: '{}' } });
+        
+        expect(setJsonData).toHaveBeenCalledWith('{}');
+        expect(setLastEdited).toHaveBeenCalledWith('json');
+    });
+
+    it('handles Structured Editor change', () => {
+        const setJsonData = vi.fn();
+        const setLastEdited = vi.fn();
+        (useAsnProcessor as any).mockReturnValue({ 
+            ...mockHook, 
+            editorMode: 'structured', 
+            setJsonData, 
+            setLastEdited,
+            definitionTree: { type: 'INTEGER', kind: 'Integer', name: 'root' },
+            jsonData: '1' 
+        });
+        render(<App />);
+        
+        const input = screen.getByDisplayValue('1');
+        fireEvent.change(input, { target: { value: '2' } });
+        
+        expect(setJsonData).toHaveBeenCalledWith('2');
+        expect(setLastEdited).toHaveBeenCalledWith('json');
+    });
+
+    it('calls loadExample', () => {
+        const loadExample = vi.fn();
+        (useAsnProcessor as any).mockReturnValue({ ...mockHook, selectedProtocol: 'p1', selectedDemoOption: 'opt', loadExample });
+        render(<App />);
+        
+        fireEvent.click(screen.getByLabelText('Reload Example'));
+        expect(loadExample).toHaveBeenCalled();
+    });
+
+    it('renders error state', () => {
+        (useAsnProcessor as any).mockReturnValue({ ...mockHook, error: 'Some Error' });
+        render(<App />);
+        expect(screen.getByText('Some Error')).toBeInTheDocument();
+    });
+
+    it('renders definition tree when available', () => {
+        (useAsnProcessor as any).mockReturnValue({ ...mockHook, definitionTree: { name: 'Root', type: 'INT' } });
+        render(<App />);
+        expect(screen.getByText('Definition Tree')).toBeInTheDocument();
+    });
+
+    it('switches editor mode', () => {
+        const setEditorMode = vi.fn();
+        (useAsnProcessor as any).mockReturnValue({ ...mockHook, setEditorMode });
+        render(<App />);
+        
+        fireEvent.click(screen.getByText('Raw'));
+        expect(setEditorMode).toHaveBeenCalledWith('raw');
+    });
+
+    it('updates Hex input when data changes', () => {
+        (useAsnProcessor as any).mockReturnValue({ ...mockHook, hexData: 'FFFF' });
+        render(<App />);
+        expect(screen.getByDisplayValue('FFFF')).toBeInTheDocument();
+    });
+
+    it('updates JSON input when data changes', () => {
+        (useAsnProcessor as any).mockReturnValue({ ...mockHook, jsonData: '{"test":1}', editorMode: 'raw' });
+        render(<App />);
+        expect(screen.getByDisplayValue(/test/)).toBeInTheDocument();
     });
 });

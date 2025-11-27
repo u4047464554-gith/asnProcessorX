@@ -21,6 +21,73 @@ describe('StructuredJsonEditor', () => {
         expect(screen.getByDisplayValue('42')).toBeInTheDocument();
     });
 
+    it('renders boolean input', () => {
+        const schema: DefinitionNode = { type: 'BOOLEAN', kind: 'Boolean', name: 'bool' };
+        renderWithMantine(<StructuredJsonEditor data={true} schema={schema} onChange={mockOnChange} />);
+        expect(screen.getByLabelText('bool')).toBeChecked();
+        
+        fireEvent.click(screen.getByLabelText('bool'));
+        expect(mockOnChange).toHaveBeenCalledWith(false);
+    });
+
+    it('renders enumerated input', () => {
+        const schema: DefinitionNode = { type: 'ENUMERATED', kind: 'Enumerated', name: 'enum' };
+        renderWithMantine(<StructuredJsonEditor data={'val1'} schema={schema} onChange={mockOnChange} />);
+        expect(screen.getByDisplayValue('val1')).toBeInTheDocument();
+        
+        fireEvent.change(screen.getByDisplayValue('val1'), { target: { value: 'val2' } });
+        expect(mockOnChange).toHaveBeenCalledWith('val2');
+    });
+
+    it('renders unknown type as text input', () => {
+        const schema: DefinitionNode = { type: 'MyType', name: 'unknown' };
+        renderWithMantine(<StructuredJsonEditor data={'text'} schema={schema} onChange={mockOnChange} />);
+        expect(screen.getByDisplayValue('text')).toBeInTheDocument();
+    });
+
+    it('renders recursive type as sequence', () => {
+        const schema: DefinitionNode = { type: 'MyRec', kind: 'Recursive', name: 'rec' };
+        renderWithMantine(<StructuredJsonEditor data={{}} schema={schema} onChange={mockOnChange} />);
+        expect(screen.getByText('rec')).toBeInTheDocument();
+        expect(screen.getByText('(MyRec)')).toBeInTheDocument();
+    });
+
+    it('renders NULL type', () => {
+        const schema: DefinitionNode = { type: 'NULL', kind: 'Null', name: 'null' };
+        renderWithMantine(<StructuredJsonEditor data={null} schema={schema} onChange={mockOnChange} />);
+        expect(screen.getByText('null')).toBeInTheDocument();
+    });
+
+    it('renders ObjectIdentifier', () => {
+        const schema: DefinitionNode = { type: 'OID', kind: 'ObjectIdentifier', name: 'oid' };
+        renderWithMantine(<StructuredJsonEditor data={'1.2.3'} schema={schema} onChange={mockOnChange} />);
+        expect(screen.getByDisplayValue('1.2.3')).toBeInTheDocument();
+    });
+
+    it('renders CHOICE', () => {
+        const schema: DefinitionNode = {
+            type: 'CHOICE', kind: 'Choice', name: 'ch',
+            children: [
+                { name: 'opt1', type: 'INTEGER', kind: 'Integer' },
+                { name: 'opt2', type: 'BOOLEAN', kind: 'Boolean' }
+            ]
+        };
+        renderWithMantine(<StructuredJsonEditor data={{ opt1: 1 }} schema={schema} onChange={mockOnChange} />);
+        expect(screen.getAllByDisplayValue('opt1').length).toBeGreaterThan(0);
+        expect(screen.getByDisplayValue('1')).toBeInTheDocument();
+    });
+
+    it('handles SEQUENCE child change', () => {
+        const schema: DefinitionNode = {
+            type: 'SEQUENCE', kind: 'Sequence', name: 'root',
+            children: [{ name: 'child', type: 'INTEGER', kind: 'Integer' }]
+        };
+        renderWithMantine(<StructuredJsonEditor data={{ child: 1 }} schema={schema} onChange={mockOnChange} />);
+        
+        fireEvent.change(screen.getByDisplayValue('1'), { target: { value: '2' } });
+        expect(mockOnChange).toHaveBeenCalledWith({ child: 2 });
+    });
+
     it('handles SEQUENCE OF add and remove', () => {
         const schema: DefinitionNode = {
             type: 'SEQUENCE OF', kind: 'SequenceOf', name: 'list',
@@ -30,11 +97,9 @@ describe('StructuredJsonEditor', () => {
         
         expect(screen.getByDisplayValue('10')).toBeInTheDocument();
         
-        // Add item
         fireEvent.click(screen.getByLabelText('Add item'));
         expect(mockOnChange).toHaveBeenCalledWith([10, 0]);
 
-        // Remove item
         fireEvent.click(screen.getByLabelText('Remove item'));
         expect(mockOnChange).toHaveBeenCalledWith([]);
     });
@@ -65,10 +130,6 @@ describe('StructuredJsonEditor', () => {
         expect(screen.getByDisplayValue('123')).toBeInTheDocument();
         
         fireEvent.click(screen.getByLabelText('Remove field'));
-        // onChange calls parent handler. Parent handler sees 'undefined' and deletes key.
-        // But here we mock the top-level onChange.
-        // The component logic: NodeRenderer(SEQUENCE) -> handleChildChange -> onChange(newObj)
-        // So it should be called with {}
         expect(mockOnChange).toHaveBeenCalledWith({});
     });
 
