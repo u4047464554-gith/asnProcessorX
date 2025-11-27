@@ -1,6 +1,7 @@
 import os
 import glob
 import sys
+import json
 from dataclasses import dataclass, asdict
 from typing import Dict, Optional, List, Any
 
@@ -24,6 +25,7 @@ class AsnManager:
         # We now use config_manager for specs locations
         self.compilers: Dict[str, asn1tools.compiler.Specification] = {}
         self.metadata: Dict[str, ProtocolMetadata] = {}
+        self.examples: Dict[str, Dict[str, Any]] = {}
         self.load_protocols()
         
     def _resolve_specs_paths(self) -> List[str]:
@@ -60,6 +62,10 @@ class AsnManager:
         """
         search_paths = self._resolve_specs_paths()
         print(f"[AsnManager] Scanning paths: {search_paths}")
+        
+        self.compilers.clear()
+        self.metadata.clear()
+        self.examples.clear()
 
         for specs_dir in search_paths:
             if not os.path.isdir(specs_dir):
@@ -84,6 +90,24 @@ class AsnManager:
                             files=[os.path.relpath(path, specs_dir) for path in asn_files],
                             types=type_names,
                         )
+                        
+                        # Load JSON examples
+                        json_files = sorted(glob.glob(os.path.join(proto_path, "*.json")))
+                        loaded_examples = {}
+                        for jf in json_files:
+                            try:
+                                with open(jf, 'r') as f:
+                                    data = json.load(f)
+                                    # Use filename stem as key (e.g. "MyMessage" from "MyMessage.json")
+                                    name = os.path.splitext(os.path.basename(jf))[0]
+                                    loaded_examples[name] = data
+                            except Exception as e:
+                                print(f"Warning: Failed to load example {jf}: {e}")
+                        
+                        if loaded_examples:
+                            self.examples[protocol] = loaded_examples
+                            print(f"Loaded {len(loaded_examples)} examples for {protocol}")
+
                         print(f"Successfully compiled {protocol}")
                     except Exception as e:
                         print(f"Error compiling {protocol}: {e}")
@@ -92,8 +116,6 @@ class AsnManager:
         return self.compilers.get(protocol)
 
     def reload(self):
-        self.compilers.clear()
-        self.metadata.clear()
         # Reload config in case it changed
         config_manager.reload()
         self.load_protocols()
@@ -107,6 +129,9 @@ class AsnManager:
 
     def list_metadata(self) -> List[Dict[str, Any]]:
         return [meta.to_dict() for meta in self.metadata.values()]
+
+    def get_examples(self, protocol: str) -> Dict[str, Any]:
+        return self.examples.get(protocol, {})
 
 # Singleton instance
 manager = AsnManager()

@@ -1,4 +1,4 @@
-# ASN.1 Stream Processor
+# ASN.1 Processor
 
 A comprehensive toolkit for working with ASN.1 specifications (PER encoding rules). 
 This application allows you to encode/decode messages, visualize bit streams, and manage ASN.1 schemas dynamically.
@@ -88,6 +88,24 @@ The backend service is configurable via the API or the Desktop App UI.
 - **API**: 
     - `GET /api/config/`: Retrieve current config.
     - `PUT /api/config/`: Update config (triggering a hot reload of schemas).
+
+## Custom Protocols & Examples
+
+You can add your own ASN.1 specifications by adding the folder path in the **Settings** menu.
+
+### Adding Custom Examples
+To make example messages appear in the "Load Example" dropdown for your custom protocol:
+1.  Create a `.json` file in the same folder as your `.asn` files.
+2.  Name the file exactly as the **Type Name** it corresponds to (e.g., `MyMessage.json` for type `MyMessage`).
+3.  The file should contain a valid JSON representation of the message.
+
+Example structure:
+```
+/my_protocols/
+  /proto_v1/
+    main.asn
+    MyMessage.json  <- Will be loaded as "MyMessage (Custom Example)"
+```
 
 ## API Documentation
 

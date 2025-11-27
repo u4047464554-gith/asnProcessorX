@@ -15,7 +15,8 @@ import {
   ActionIcon,
   Grid,
   ScrollArea,
-  Box
+  Box,
+  MantineProvider
 } from '@mantine/core'
 import { useDebouncedValue } from '@mantine/hooks'
 import { IconSettings, IconLayoutSidebarRight } from '@tabler/icons-react'
@@ -27,6 +28,8 @@ import type { DefinitionNode } from './components/definition/types'
 import type { DemoEntry } from './data/demos'
 import { demoPayloads, demoErrorPayloads } from './data/demos'
 import { SettingsModal } from './components/SettingsModal'
+import { themes } from './theme'
+import { StarTrekShip } from './components/StarTrekShip'
 
 const resolveApiBase = () => {
   if (import.meta.env.VITE_API_BASE) {
@@ -103,6 +106,7 @@ function App() {
   const [demoTypeOptions, setDemoTypeOptions] = useState<DemoOption[]>([])
   const [selectedDemoOption, setSelectedDemoOption] = useState<string | null>(null)
   const [selectedType, setSelectedType] = useState<string | null>(null)
+  const [dynamicExamples, setDynamicExamples] = useState<Record<string, any>>({})
   
   // Decode State
   const [hexData, setHexData] = useState('')
@@ -136,6 +140,16 @@ function App() {
   // Settings State
   const [settingsOpen, setSettingsOpen] = useState(false)
 
+  // Theme State
+  const [currentThemeName, setCurrentThemeName] = useState<string>(() => {
+      return localStorage.getItem('ui-theme') || 'Default';
+  });
+
+  const handleThemeChange = (name: string) => {
+      setCurrentThemeName(name);
+      localStorage.setItem('ui-theme', name);
+  };
+
   useEffect(() => {
     axios.get('/api/asn/protocols')
       .then(res => setProtocols(res.data))
@@ -147,15 +161,21 @@ function App() {
       setDemoTypeOptions([])
       setSelectedDemoOption(null)
       setSelectedType(null)
+      setDynamicExamples({})
       return
     }
 
-    axios
-      .get(`/api/asn/protocols/${selectedProtocol}/types`)
-      .then((res) => {
+    Promise.all([
+      axios.get(`/api/asn/protocols/${selectedProtocol}/types`),
+      axios.get(`/api/asn/protocols/${selectedProtocol}/examples`).catch(() => ({ data: {} }))
+    ])
+      .then(([typesRes, examplesRes]) => {
         const protocolName = selectedProtocol
+        const fetchedExamples = examplesRes.data || {}
+        setDynamicExamples(fetchedExamples)
+
         const options: DemoOption[] = []
-        res.data.forEach((typeName: string) => {
+        typesRes.data.forEach((typeName: string) => {
           const validExample = demoPayloads[protocolName]?.[typeName]
           if (validExample) {
             options.push({
@@ -163,6 +183,14 @@ function App() {
               label: `${typeName} (Valid Demo)`,
             })
           }
+          
+          if (fetchedExamples[typeName]) {
+             options.push({
+                 value: `${typeName}::dynamic`,
+                 label: `${typeName} (Custom Example)`
+             })
+          }
+
           const errorCases = demoErrorPayloads[protocolName]?.[typeName] ?? []
           errorCases.forEach((_, idx) => {
             options.push({
@@ -173,7 +201,7 @@ function App() {
         })
         
         if (options.length === 0) {
-             res.data.forEach((typeName: string) => {
+             typesRes.data.forEach((typeName: string) => {
                  options.push({ value: typeName, label: typeName })
              })
         }
@@ -343,11 +371,13 @@ function App() {
           return
       }
       
-      const [, variant, errorIndex] = parts
+      const [typeName, variant, errorIndex] = parts
       let example: DemoEntry | undefined
       if (variant === 'error') {
         const idx = Number(errorIndex ?? 0)
         example = demoErrorPayloads[selectedProtocol]?.[selectedType]?.[idx]
+      } else if (variant === 'dynamic') {
+        example = dynamicExamples[typeName]
       } else {
         example = demoPayloads[selectedProtocol]?.[selectedType]
       }
@@ -383,6 +413,8 @@ function App() {
         if (variant === 'error') {
             const idx = Number(errorIndex ?? 0)
             example = demoErrorPayloads[selectedProtocol]?.[typeName]?.[idx]
+        } else if (variant === 'dynamic') {
+            example = dynamicExamples[typeName]
         } else {
             example = demoPayloads[selectedProtocol]?.[typeName]
         }
@@ -438,12 +470,14 @@ function App() {
   }
 
   return (
+    <MantineProvider theme={themes[currentThemeName]} forceColorScheme={currentThemeName.includes('Star Trek') ? 'dark' : undefined}>
     <AppShell
       header={{ height: 60 }}
       padding="md"
     >
       <AppShell.Header>
-        <Group h="100%" px="md" justify="space-between">
+        {currentThemeName.includes('Star Trek') && <StarTrekShip />}
+        <Group h="100%" px="md" justify="space-between" style={{ position: 'relative', zIndex: 1 }}>
           <Title order={3}>ASN.1 Processor</Title>
           <Group>
             <Button 
@@ -632,9 +666,15 @@ function App() {
             </Stack>
         </Modal>
 
-        <SettingsModal opened={settingsOpen} onClose={() => setSettingsOpen(false)} />
+        <SettingsModal 
+            opened={settingsOpen} 
+            onClose={() => setSettingsOpen(false)} 
+            currentTheme={currentThemeName}
+            onThemeChange={handleThemeChange}
+        />
       </AppShell.Main>
     </AppShell>
+    </MantineProvider>
   )
 }
 

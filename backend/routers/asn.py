@@ -107,6 +107,10 @@ async def list_types(protocol: str):
         raise HTTPException(status_code=404, detail=f"Protocol '{protocol}' not found")
     return metadata["types"]
 
+@router.get("/protocols/{protocol}/examples")
+async def list_examples(protocol: str):
+    return manager.get_examples(protocol)
+
 @router.get("/protocols/{protocol}/types/{type_name}")
 async def get_type_definition(protocol: str, type_name: str):
     compiler = manager.get_compiler(protocol)

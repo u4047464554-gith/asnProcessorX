@@ -1,13 +1,16 @@
-import { Modal, Button, Stack, Group, Title, Text, TagsInput } from '@mantine/core';
+import { Modal, Button, Stack, Group, Title, Text, TagsInput, Select, Divider } from '@mantine/core';
 import { useState, useEffect } from 'react';
 import axios from 'axios';
+import { themes } from '../theme';
 
 interface SettingsModalProps {
     opened: boolean;
     onClose: () => void;
+    currentTheme: string;
+    onThemeChange: (theme: string) => void;
 }
 
-export function SettingsModal({ opened, onClose }: SettingsModalProps) {
+export function SettingsModal({ opened, onClose, currentTheme, onThemeChange }: SettingsModalProps) {
     const [specsDirs, setSpecsDirs] = useState<string[]>([]);
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
@@ -33,8 +36,6 @@ export function SettingsModal({ opened, onClose }: SettingsModalProps) {
                 specs_directories: specsDirs
             });
             onClose();
-            // Reload page to refresh protocols? Or just trigger a refresh callback.
-            // For simplicity, we'll let the user know they might need to refresh protocols.
             window.location.reload(); 
         } catch (err: any) {
             setError(err.message);
@@ -46,6 +47,16 @@ export function SettingsModal({ opened, onClose }: SettingsModalProps) {
     return (
         <Modal opened={opened} onClose={onClose} title="Settings" size="lg">
             <Stack>
+                <Title order={5}>User Interface</Title>
+                <Select 
+                    label="Theme"
+                    data={Object.keys(themes)}
+                    value={currentTheme}
+                    onChange={(val) => val && onThemeChange(val)}
+                />
+
+                <Divider my="sm" />
+
                 <Title order={5}>ASN.1 Specifications</Title>
                 <Text size="sm" c="dimmed">
                     Add directories where your .asn files are located. The backend will scan these recursively.
