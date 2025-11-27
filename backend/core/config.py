@@ -8,6 +8,7 @@ class AppConfig(BaseModel):
     server_port: int = 0  # 0 for ephemeral
     server_host: str = "127.0.0.1"
     log_level: str = "INFO"
+    splash_duration: int = 10000
 
     model_config = ConfigDict(extra="ignore")
 

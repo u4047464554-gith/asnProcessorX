@@ -1,4 +1,4 @@
-import { Modal, Button, Stack, Group, Title, Text, TagsInput, Select, Divider } from '@mantine/core';
+import { Modal, Button, Stack, Group, Title, Text, TagsInput, Select, Divider, NumberInput } from '@mantine/core';
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { themes } from '../theme';
@@ -12,6 +12,7 @@ interface SettingsModalProps {
 
 export function SettingsModal({ opened, onClose, currentTheme, onThemeChange }: SettingsModalProps) {
     const [specsDirs, setSpecsDirs] = useState<string[]>([]);
+    const [splashDuration, setSplashDuration] = useState<number>(3);
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -22,6 +23,7 @@ export function SettingsModal({ opened, onClose, currentTheme, onThemeChange }: 
             axios.get('/api/config/')
                 .then(res => {
                     setSpecsDirs(res.data.specs_directories);
+                    setSplashDuration((res.data.splash_duration || 3000) / 1000);
                     setError(null);
                 })
                 .catch(err => setError(err.message))
@@ -33,7 +35,8 @@ export function SettingsModal({ opened, onClose, currentTheme, onThemeChange }: 
         setSaving(true);
         try {
             await axios.put('/api/config/', {
-                specs_directories: specsDirs
+                specs_directories: specsDirs,
+                splash_duration: splashDuration * 1000
             });
             onClose();
             window.location.reload(); 
@@ -53,6 +56,13 @@ export function SettingsModal({ opened, onClose, currentTheme, onThemeChange }: 
                     data={Object.keys(themes)}
                     value={currentTheme}
                     onChange={(val) => val && onThemeChange(val)}
+                />
+                <NumberInput
+                    label="Splash Screen Duration (seconds)"
+                    value={splashDuration}
+                    onChange={(val) => setSplashDuration(Number(val))}
+                    min={0}
+                    max={60}
                 />
 
                 <Divider my="sm" />

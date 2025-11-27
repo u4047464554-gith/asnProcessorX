@@ -23,6 +23,24 @@ function log(msg) {
     console.log(msg);
 }
 
+let splashDuration = 10000;
+try {
+    const configPath = process.platform === 'win32' 
+        ? path.join(process.env.APPDATA, 'AsnProcessor', 'config.json')
+        : path.join(process.env.HOME, '.config', 'asn_processor', 'config.json');
+        
+    if (fs.existsSync(configPath)) {
+        const conf = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+        if (conf.splash_duration !== undefined) {
+            splashDuration = conf.splash_duration;
+        }
+    }
+} catch (e) {
+    log(`Config read error: ${e.message}`);
+}
+log(`Splash duration: ${splashDuration}ms`);
+let startTime = Date.now();
+
 log('--- Electron Process Starting ---');
 
 const isDev = process.env.NODE_ENV === 'development';
@@ -64,24 +82,11 @@ function createWindow() {
         backgroundColor: '#ffffff'
     });
 
-    const loadingHtml = `
-      data:text/html;charset=utf-8,
-      <html>
-      <head>
-        <style>body { font-family: sans-serif; text-align: center; padding-top: 50px; }</style>
-      </head>
-      <body>
-        <h2>Starting Service...</h2>
-        <div id="status">Please wait...</div>
-      </body>
-      </html>
-    `;
-
     if (isDev) {
         mainWindow.loadURL('http://localhost:5173');
         mainWindow.show();
     } else {
-        mainWindow.loadURL(loadingHtml);
+        mainWindow.loadFile(path.join(__dirname, 'splash.html'));
         mainWindow.once('ready-to-show', () => {
             mainWindow.show();
         });
@@ -93,6 +98,7 @@ function createWindow() {
 }
 
 function startBackendAndWindow() {
+    startTime = Date.now();
     if (isDev) {
         createWindow();
         return;
@@ -142,11 +148,18 @@ function startBackendAndWindow() {
                 clearTimeout(timeout);
                 const port = match[1];
                 log(`Backend ready on port ${port}`);
-                if (mainWindow) {
-                    const url = `http://127.0.0.1:${port}`;
-                    log(`Navigating to ${url}`);
-                    mainWindow.loadURL(url);
-                }
+                
+                const elapsed = Date.now() - startTime;
+                const remaining = Math.max(0, splashDuration - elapsed);
+                log(`Waiting ${remaining}ms for splash...`);
+
+                setTimeout(() => {
+                    if (mainWindow) {
+                        const url = `http://127.0.0.1:${port}`;
+                        log(`Navigating to ${url}`);
+                        mainWindow.loadURL(url);
+                    }
+                }, remaining);
             }
         }
     });
