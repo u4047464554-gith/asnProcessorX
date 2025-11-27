@@ -41,5 +41,6 @@ temp_clone/
 
 
 frontend/release/
+frontend/coverage/
 backend/dist/
 backend/build/
