@@ -35,3 +35,11 @@ Thumbs.db
 temp_clone/
 *.log
 
+
+
+
+
+
+frontend/release/
+backend/dist/
+backend/build/

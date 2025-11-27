@@ -16,8 +16,9 @@ export interface TraceResponsePayload {
   status: string
   protocol: string
   type_name: string
-  decoded: unknown
-  trace: TraceNode
-  total_bits: number
+  decoded?: unknown
+  trace?: TraceNode
+  total_bits?: number
+  error?: string
+  diagnostics?: string
 }
-

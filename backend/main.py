@@ -1,8 +1,17 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from backend.routers import asn
+from contextlib import asynccontextmanager
+from backend.routers import asn, config
+from backend.core.manager import manager
 
-app = FastAPI(title="ASN.1 Stream Processor")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Load protocols on startup
+    manager.load_protocols()
+    yield
+    # Clean up if needed
+
+app = FastAPI(title="ASN.1 Stream Processor", lifespan=lifespan)
 
 # Allow CORS for Frontend
 app.add_middleware(
@@ -14,8 +23,8 @@ app.add_middleware(
 )
 
 app.include_router(asn.router, prefix="/api/asn", tags=["asn"])
+app.include_router(config.router, prefix="/api/config", tags=["config"])
 
 @app.get("/health")
 async def health_check():
     return {"status": "ok", "version": "0.1.0"}
-

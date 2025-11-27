@@ -58,6 +58,32 @@ export const demoPayloads: DemoMap = {
     },
     MessageId: 'attachRequest',
   },
+  parameterization_demo: {
+    TemplateInteger: {
+      id: 42,
+      payload: 1337,
+    },
+    TemplateBooleanSeqOfInt: {
+      flag: true,
+      nested: {
+        id: 1,
+        payload: 99,
+      },
+    },
+    Envelope: {
+      flag: false,
+      nested: {
+        id: 2,
+        payload: true,
+      },
+    },
+    BoundedBooleanSeq5: {
+      samples: [true, false, true],
+    },
+    RangeLimited7To42: {
+      value: 10,
+    },
+  },
 }
 
 export const demoErrorPayloads: DemoErrorMap = {
@@ -95,5 +121,13 @@ export const demoErrorPayloads: DemoErrorMap = {
       },
     ],
   },
+  parameterization_demo: {
+    RangeLimited7To42: [
+      { value: 5 },  // Too small
+      { value: 50 }, // Too large
+    ],
+    BoundedBooleanSeq5: [
+      { samples: [true, true, true, true, true, true] }, // Too many (6 > 5)
+    ],
+  },
 }
-

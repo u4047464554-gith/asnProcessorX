@@ -1,5 +1,6 @@
 # -*- mode: python ; coding: utf-8 -*-
 import sys
+import os
 from PyInstaller.utils.hooks import copy_metadata
 
 block_cipher = None
@@ -10,9 +11,13 @@ datas += copy_metadata('uvicorn')
 datas += copy_metadata('fastapi')
 datas += copy_metadata('asn1tools')
 
+# We need to add the project root to pathex so 'backend' package can be found
+# Assuming we run pyinstaller from 'backend/' directory, '..' is the root.
+pathex = [os.path.abspath('..')]
+
 a = Analysis(
     ['desktop_main.py'],
-    pathex=[],
+    pathex=pathex,
     binaries=[],
     datas=datas,
     hiddenimports=[
@@ -24,9 +29,20 @@ a = Analysis(
         'uvicorn.protocols.http.auto',
         'uvicorn.lifespan',
         'uvicorn.lifespan.on',
-        'engineio.async_drivers.asgi', # sometimes needed for fastAPI/socketio apps
+        'engineio.async_drivers.asgi',
         'fastapi',
         'starlette',
+        'backend', # Ensure backend package is included
+        'backend.main',
+        'backend.routers',
+        'backend.routers.asn',
+        'backend.core',
+        'backend.core.manager',
+        'backend.core.tracer',
+        'backend.core.codegen',
+        'backend.core.serialization',
+        'backend.core.asn1_runtime',
+        'backend.core.type_tree',
     ],
     hookspath=[],
     hooksconfig={},
@@ -60,4 +76,3 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
 )
-

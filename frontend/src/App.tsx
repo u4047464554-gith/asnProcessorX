@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import {
   AppShell,
   Group,
@@ -12,7 +12,13 @@ import {
   Paper,
   Collapse,
   Modal,
+  ActionIcon,
+  Grid,
+  ScrollArea,
+  Box
 } from '@mantine/core'
+import { useDebouncedValue } from '@mantine/hooks'
+import { IconSettings, IconLayoutSidebarRight } from '@tabler/icons-react'
 import axios from 'axios'
 import { BitInspectorPanel } from './components/trace/BitInspectorPanel'
 import type { TraceResponsePayload } from './components/trace/types'
@@ -20,6 +26,7 @@ import { DefinitionTree } from './components/definition/DefinitionTree'
 import type { DefinitionNode } from './components/definition/types'
 import type { DemoEntry } from './data/demos'
 import { demoPayloads, demoErrorPayloads } from './data/demos'
+import { SettingsModal } from './components/SettingsModal'
 
 const resolveApiBase = () => {
   if (import.meta.env.VITE_API_BASE) {
@@ -56,11 +63,38 @@ const formatErrorMessage = (err: any) => {
         return JSON.stringify(entry)
       })
       .join('\n')
-  }
+    }
   if (detail && typeof detail === 'object') {
     return JSON.stringify(detail)
   }
   return err?.message || 'Unknown error'
+}
+
+// Conversion Helpers
+const hexToBase64 = (hex: string) => {
+  const clean = hex.replace(/[\s\n]/g, '').replace(/^0x/i, '')
+  if (clean.length % 2 !== 0) return '' 
+  try {
+    const bytes = new Uint8Array(clean.match(/.{1,2}/g)?.map(byte => parseInt(byte, 16)) || [])
+    let binary = ''
+    bytes.forEach(b => binary += String.fromCharCode(b))
+    return window.btoa(binary)
+  } catch (e) {
+    return ''
+  }
+}
+
+const base64ToHex = (base64: string) => {
+  try {
+    const binary = window.atob(base64)
+    const bytes = new Uint8Array(binary.length)
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i)
+    }
+    return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('').toUpperCase()
+  } catch (e) {
+    return ''
+  }
 }
 
 function App() {
@@ -72,9 +106,16 @@ function App() {
   
   // Decode State
   const [hexData, setHexData] = useState('')
+  const [base64Data, setBase64Data] = useState('')
+  const [debouncedHex] = useDebouncedValue(hexData, 500)
   
   // Encode State
   const [jsonData, setJsonData] = useState('')
+  const [debouncedJson] = useDebouncedValue(jsonData, 500)
+
+  // Tracking user input source to prevent loops
+  // 'hex' implies source was Hex OR Base64 input (which converts to hex)
+  const [lastEdited, setLastEdited] = useState<'hex' | 'json' | null>(null)
 
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -84,10 +125,16 @@ function App() {
   const [definitionTree, setDefinitionTree] = useState<DefinitionNode | null>(null)
   const [definitionOpen, setDefinitionOpen] = useState(false)
 
+  // Layout State
+  const [inspectorOpen, setInspectorOpen] = useState(true)
+
   // Codegen State
   const [codegenModalOpen, setCodegenModalOpen] = useState(false)
   const [codegenLoading, setCodegenLoading] = useState(false)
   const [codegenError, setCodegenError] = useState<string | null>(null)
+
+  // Settings State
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
   useEffect(() => {
     axios.get('/api/asn/protocols')
@@ -124,6 +171,13 @@ function App() {
             })
           })
         })
+        
+        if (options.length === 0) {
+             res.data.forEach((typeName: string) => {
+                 options.push({ value: typeName, label: typeName })
+             })
+        }
+        
         setDemoTypeOptions(options)
         setSelectedDemoOption(null)
         setSelectedType(null)
@@ -158,7 +212,7 @@ function App() {
     }
   }, [definitionTree])
 
-  const fetchTrace = async (protocol: string, typeName: string, payloadHex: string) => {
+  const fetchTrace = useCallback(async (protocol: string, typeName: string, payloadHex: string) => {
     if (!payloadHex.trim()) {
       setTraceData(null)
       return
@@ -172,33 +226,46 @@ function App() {
         type_name: typeName,
         encoding_rule: 'per',
       })
-      setTraceData(response.data)
+      if (response.data.status === 'failure') {
+        setTraceError(response.data.diagnostics || response.data.error || 'Trace failed')
+        setTraceData(null)
+      } else {
+        setTraceData(response.data)
+      }
     } catch (err: any) {
       setTraceError(err.response?.data?.detail || err.message)
       setTraceData(null)
     } finally {
       setTraceLoading(false)
     }
-  }
+  }, [])
 
-  const handleDecode = async () => {
+  const handleDecode = useCallback(async (hexOverride?: string) => {
     if (!selectedProtocol) return
-    setError(null)
-    setTraceData(null)
-    setTraceError(null)
+    const currentHex = hexOverride ?? hexData
+    if (!currentHex.trim()) return
+
     setLoading(true)
     try {
       const res = await axios.post('/api/asn/decode', {
-        hex_data: hexData,
+        hex_data: currentHex,
         protocol: selectedProtocol,
-        type_name: selectedType || undefined, // Optional
+        type_name: selectedType || undefined,
         encoding_rule: 'per'
       })
+
+      if (res.data.status === 'failure') {
+        setError(res.data.diagnostics || res.data.error)
+        return
+      }
+
+      setError(null)
       const formattedJson = JSON.stringify(res.data.data ?? res.data, null, 2)
       setJsonData(formattedJson)
+      
       const resolvedType = selectedType || res.data.decoded_type
       if (resolvedType) {
-        await fetchTrace(selectedProtocol, resolvedType, hexData)
+        await fetchTrace(selectedProtocol, resolvedType, currentHex)
       } else {
         setTraceError("Bit tracing requires a message type.")
       }
@@ -207,19 +274,18 @@ function App() {
     } finally {
         setLoading(false)
     }
-  }
+  }, [hexData, selectedProtocol, selectedType, fetchTrace])
 
-  const handleEncode = async () => {
-    if (!selectedProtocol || !selectedType) {
-        setError("Please select Protocol and Type Name")
-        return
-    }
-    setError(null)
+  const handleEncode = useCallback(async (jsonOverride?: string) => {
+    if (!selectedProtocol || !selectedType) return
+    const currentJson = jsonOverride ?? jsonData
+    if (!currentJson.trim()) return
+
     setLoading(true)
     try {
       let parsedJson;
       try {
-        parsedJson = JSON.parse(jsonData)
+        parsedJson = JSON.parse(currentJson)
       } catch (e) {
         setError("Invalid JSON format")
         setLoading(false)
@@ -232,15 +298,38 @@ function App() {
         type_name: selectedType,
         encoding_rule: 'per'
       })
+
+      if (res.data.status === 'failure') {
+        setError(res.data.diagnostics || res.data.error)
+        return
+      }
+
+      setError(null)
       const newHex = res.data.hex_data
       setHexData(newHex)
+      setBase64Data(hexToBase64(newHex)) // Sync Base64
+      
       await fetchTrace(selectedProtocol, selectedType, newHex)
     } catch (err: any) {
       setError(formatErrorMessage(err))
     } finally {
         setLoading(false)
     }
-  }
+  }, [jsonData, selectedProtocol, selectedType, fetchTrace])
+
+  // Auto-conversion effects
+  useEffect(() => {
+      if (lastEdited === 'hex' && debouncedHex) {
+          handleDecode(debouncedHex)
+      }
+  }, [debouncedHex, lastEdited, handleDecode])
+
+  useEffect(() => {
+      if (lastEdited === 'json' && debouncedJson) {
+          handleEncode(debouncedJson)
+      }
+  }, [debouncedJson, lastEdited, handleEncode])
+
 
   const loadExample = () => {
       setError(null)
@@ -248,7 +337,13 @@ function App() {
         setError("Select a protocol and demo message type first")
         return
       }
-      const [, variant, errorIndex] = selectedDemoOption.split('::')
+      const parts = selectedDemoOption.split('::')
+      if (parts.length === 1) {
+          setError("This is just a type definition, no demo data available.")
+          return
+      }
+      
+      const [, variant, errorIndex] = parts
       let example: DemoEntry | undefined
       if (variant === 'error') {
         const idx = Number(errorIndex ?? 0)
@@ -264,11 +359,10 @@ function App() {
         setError("Error demos must be structured objects for JSON conversion")
         return
       }
-      if (variant === 'error') {
-        setJsonData(JSON.stringify(example, null, 2))
-      } else {
-        setJsonData(JSON.stringify(example, null, 2))
-      }
+      
+      const jsonString = JSON.stringify(example, null, 2)
+      setJsonData(jsonString)
+      setLastEdited('json') 
   }
 
   const handleDemoSelect = (value: string | null) => {
@@ -278,8 +372,30 @@ function App() {
       setJsonData('')
       return
     }
-    const [typeName] = value.split('::')
+    const parts = value.split('::')
+    const typeName = parts[0]
     setSelectedType(typeName)
+
+    // Auto-load example data
+    if (selectedProtocol && parts.length > 1) {
+        const [, variant, errorIndex] = parts
+        let example: DemoEntry | undefined
+        if (variant === 'error') {
+            const idx = Number(errorIndex ?? 0)
+            example = demoErrorPayloads[selectedProtocol]?.[typeName]?.[idx]
+        } else {
+            example = demoPayloads[selectedProtocol]?.[typeName]
+        }
+
+        if (example) {
+            const jsonString = JSON.stringify(example, null, 2)
+            setJsonData(jsonString)
+            setLastEdited('json') 
+            setError(null)
+        }
+    } else {
+        setJsonData('')
+    }
   }
 
   const handleCodegen = async () => {
@@ -295,7 +411,6 @@ function App() {
               responseType: 'blob'
           })
 
-          // Create download link
           const url = window.URL.createObjectURL(new Blob([res.data]));
           const link = document.createElement('a');
           link.href = url;
@@ -307,7 +422,6 @@ function App() {
 
       } catch (err: any) {
           if (err.response?.data instanceof Blob) {
-               // Parse blob error
                const text = await err.response.data.text()
                try {
                    const json = JSON.parse(text)
@@ -331,14 +445,26 @@ function App() {
       <AppShell.Header>
         <Group h="100%" px="md" justify="space-between">
           <Title order={3}>ASN.1 Processor</Title>
-          <Button 
-            variant="outline" 
-            size="xs" 
-            disabled={!selectedProtocol}
-            onClick={() => setCodegenModalOpen(true)}
-          >
-            Generate C Stubs
-          </Button>
+          <Group>
+            <Button 
+                variant="outline" 
+                size="xs" 
+                disabled={!selectedProtocol}
+                onClick={() => setCodegenModalOpen(true)}
+            >
+                Generate C Stubs
+            </Button>
+            <ActionIcon 
+                variant={inspectorOpen ? "filled" : "default"} 
+                onClick={() => setInspectorOpen(!inspectorOpen)}
+                title="Toggle Bit Inspector"
+            >
+                <IconLayoutSidebarRight size="1rem" />
+            </ActionIcon>
+            <ActionIcon variant="default" onClick={() => setSettingsOpen(true)}>
+                <IconSettings size="1rem" />
+            </ActionIcon>
+          </Group>
         </Group>
       </AppShell.Header>
 
@@ -362,7 +488,7 @@ function App() {
               disabled={!selectedProtocol}
             />
              <Button variant="light" onClick={loadExample} disabled={!selectedDemoOption}>
-               Load Example
+               Reload Example
              </Button>
         </Group>
 
@@ -388,51 +514,99 @@ function App() {
              </Paper>
         )}
 
-        <Stack gap="xl">
-          <Paper withBorder p="md">
-            <Stack gap="md">
-              <Text fw={600}>Hex ↔ JSON</Text>
-              <Textarea
-                label="Hex"
-                placeholder="80 05 ..."
-                minRows={10}
-                value={hexData}
-                onChange={(e) => setHexData(e.currentTarget.value)}
-                style={{ fontFamily: 'monospace' }}
-              />
-              <Group justify="center">
-                <Button onClick={handleDecode} disabled={!selectedProtocol || loading} loading={loading}>
-                  Hex → JSON
-                </Button>
-                <Button
-                  onClick={handleEncode}
-                  disabled={!selectedProtocol || !selectedType || loading}
-                  loading={loading}
-                  variant="light"
-                >
-                  JSON → Hex
-                </Button>
-              </Group>
-              <JsonInput
-                label="JSON Input"
-                placeholder="{ ... }"
-                validationError="Invalid JSON"
-                formatOnBlur
-                autosize
-                minRows={10}
-                value={jsonData}
-                onChange={setJsonData}
-              />
-              <BitInspectorPanel
-                hexInput={hexData}
-                traceRoot={traceData?.trace}
-                totalBits={traceData?.total_bits}
-                loading={traceLoading}
-                error={traceError}
-              />
-            </Stack>
-          </Paper>
-        </Stack>
+        <Grid gutter="md">
+            <Grid.Col span={inspectorOpen ? 6 : 12}>
+                <Stack gap="md">
+                  <Paper withBorder p="md">
+                    <Stack gap="md">
+                      <Text fw={600}>Hex Input</Text>
+                      <Textarea
+                        placeholder="80 05 ..."
+                        minRows={3}
+                        maxRows={8}
+                        autosize
+                        value={hexData}
+                        onChange={(e) => {
+                            const val = e.currentTarget.value
+                            setHexData(val)
+                            setBase64Data(hexToBase64(val))
+                            setLastEdited('hex')
+                        }}
+                        style={{ fontFamily: 'monospace' }}
+                      />
+                      
+                      <Text fw={600}>Base64</Text>
+                      <Textarea
+                        placeholder="Base64 representation"
+                        minRows={2}
+                        maxRows={5}
+                        autosize
+                        value={base64Data}
+                        onChange={(e) => {
+                            const val = e.currentTarget.value
+                            setBase64Data(val)
+                            const hex = base64ToHex(val)
+                            if (hex) {
+                                setHexData(hex)
+                                setLastEdited('hex') // Trigger hex decode logic
+                            }
+                        }}
+                        style={{ fontFamily: 'monospace' }}
+                      />
+                    </Stack>
+                  </Paper>
+                  
+                  <Group justify="center" hidden>
+                    <Button onClick={() => handleDecode()} disabled={!selectedProtocol || loading} loading={loading}>
+                      Hex → JSON
+                    </Button>
+                    <Button onClick={() => handleEncode()} disabled={!selectedProtocol || !selectedType || loading} loading={loading}>
+                      JSON → Hex
+                    </Button>
+                  </Group>
+
+                  <Paper withBorder p="md">
+                    <Stack gap="md">
+                      <Text fw={600}>JSON Input</Text>
+                      <JsonInput
+                        placeholder="{ ... }"
+                        validationError="Invalid JSON"
+                        formatOnBlur
+                        autosize
+                        minRows={10}
+                        maxRows={25}
+                        value={jsonData}
+                        onChange={(val) => {
+                            setJsonData(val)
+                            setLastEdited('json')
+                        }}
+                      />
+                    </Stack>
+                  </Paper>
+                </Stack>
+            </Grid.Col>
+            
+            {inspectorOpen && (
+                <Grid.Col span={6}>
+                    <Paper withBorder p="md" h="100%" style={{ minHeight: '500px' }}>
+                        <Stack h="100%">
+                            <Text fw={600}>Bit Inspector</Text>
+                            <Box style={{ flex: 1, position: 'relative' }}>
+                                <ScrollArea h="100%">
+                                    <BitInspectorPanel
+                                        hexInput={hexData}
+                                        traceRoot={traceData?.trace}
+                                        totalBits={traceData?.total_bits}
+                                        loading={traceLoading}
+                                        error={traceError}
+                                    />
+                                </ScrollArea>
+                            </Box>
+                        </Stack>
+                    </Paper>
+                </Grid.Col>
+            )}
+        </Grid>
 
         <Modal 
             opened={codegenModalOpen} 
@@ -444,7 +618,7 @@ function App() {
                     This will generate C encoder/decoder stubs (PER) for <b>{selectedProtocol}</b> using <code>asn1c</code>.
                 </Text>
                 <Text size="xs" c="dimmed">
-                    Note: This uses the vendored asn1c compiler. Ensure your target platform is compatible with the generated C code.
+                    Note: This requires the <code>asn1c</code> binary to be installed and available in your system PATH.
                 </Text>
                 
                 {codegenError && (
@@ -457,6 +631,8 @@ function App() {
                 </Group>
             </Stack>
         </Modal>
+
+        <SettingsModal opened={settingsOpen} onClose={() => setSettingsOpen(false)} />
       </AppShell.Main>
     </AppShell>
   )

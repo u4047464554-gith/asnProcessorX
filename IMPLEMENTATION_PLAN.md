@@ -9,12 +9,14 @@
 ### Implemented ✅
 *   **Frontend (Web)**:
     *   **Framework**: React 18 + TypeScript + Vite ✅
+    *   **Platform**: Electron (Desktop App) ✅
     *   **UI Library**: Mantine ✅
     *   **State**: React useState (simple for MVP) ✅
-    *   **Features**: Tabbed Encode/Decode UI, Protocol/Type selection ✅
+    *   **Features**: Tabbed Encode/Decode UI, Protocol/Type selection, Settings/Config ✅
 *   **Backend (Engine)**:
     *   **Language**: Python 3.10+ ✅
     *   **API Framework**: FastAPI ✅
+    *   **Packaging**: PyInstaller (Standalone Executable) ✅
     *   **ASN.1 Engine**: `asn1tools` with PER codec ✅
     *   **Cross-Platform**: Runs on Win/Mac/Linux ✅
     *   **Quality Tools**: pytest, ruff, mypy ✅
@@ -30,7 +32,7 @@
 | Protocol Context Selection | ✅ Done | Dropdown in UI |
 | Message Type Selection | ✅ Done | Dropdown populated per protocol |
 | Type Definition Preview | ✅ Done | Shows ASN.1 definition when type selected |
-| Hot Reload (watchdog) | ⏳ Pending | Backend restart required for new specs |
+| Hot Reload (watchdog) | ✅ Done | Manual trigger via Config Update (Service Mode) |
 
 ### B. Encoding & Decoding ✅
 | Feature | Status | Notes |
@@ -139,6 +141,19 @@
 1. **BER/DER Support** - Add codec selector dropdown
 2. **UPER vs PER** - Aligned/Unaligned toggle
 3. **More 3GPP Specs** - Add real S1AP, X2AP, NGAP specs
+
+### Phase 6: Desktop Application & Service Mode ✅
+1. **Desktop Packaging**
+   - Electron Shell + PyInstaller Backend ✅
+   - Single Installer (NSIS) ✅
+   - Auto-discovery of free ports ✅
+2. **Service Mode (Configuration)**
+   - Persistent Settings (`config.json`) ✅
+   - UI for managing ASN Spec Directories ✅
+   - Dynamic Protocol Reloading ✅
+3. **Quality Assurance**
+   - Release Integration Tests (`test_release.py`) ✅
+   - Configuration Unit Tests ✅
 
 ---
 

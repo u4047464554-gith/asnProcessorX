@@ -71,15 +71,26 @@ async def encode_message(request: EncodeRequest):
             "hex_data": encoded.hex()
         }
     except asn1tools.ConstraintsError as e:
-         raise HTTPException(status_code=400, detail=f"Validation Error: {str(e)}")
+         # User requirement: Return 200 with diagnostic info, not 400
+         return {
+             "status": "failure",
+             "protocol": request.protocol,
+             "type_name": request.type_name,
+             "error": f"Validation Error: {str(e)}",
+             "diagnostics": str(e)
+         }
     except asn1tools.EncodeError as e:
-         raise HTTPException(status_code=400, detail=f"Encoding Error: {str(e)}")
+         return {
+             "status": "failure",
+             "protocol": request.protocol,
+             "type_name": request.type_name,
+             "error": f"Encoding Error: {str(e)}",
+             "diagnostics": str(e)
+         }
     except Exception as e:
+         # Internal errors (bug in code) are still 500, but if it's a data issue we might want to handle it?
+         # Let's keep 500 for unexpected server crashes.
          raise HTTPException(status_code=500, detail=f"Internal Error: {str(e)}")
-
-@router.on_event("startup")
-async def startup_event():
-    manager.load_protocols()
 
 @router.get("/protocols")
 async def list_protocols():
@@ -183,12 +194,24 @@ async def decode_message(request: DecodeRequest):
                 continue
         
         if not success:
-             # If specific type was requested, fail harder
+             # If specific type was requested, return failure object
              if request.type_name:
-                 raise HTTPException(status_code=400, detail=last_error)
+                 return {
+                     "status": "failure",
+                     "protocol": request.protocol,
+                     "decoded_type": request.type_name,
+                     "error": last_error,
+                     "diagnostics": last_error
+                 }
              
              # Return a summary of errors if blindly trying all types
-             raise HTTPException(status_code=400, detail=f"Could not decode. Errors: {'; '.join(error_details[:3])}...")
+             return {
+                 "status": "failure",
+                 "protocol": request.protocol,
+                 "decoded_type": "Unknown",
+                 "error": "Could not decode against any type.",
+                 "diagnostics": f"Errors: {'; '.join(error_details[:3])}..."
+             }
 
         # Convert decoded object (which might have bytes) to JSON serializable
         # primitive version of asn1tools decode result is usually dicts and python types.
@@ -215,11 +238,31 @@ async def trace_message(request: TraceRequest):
     try:
         result = trace_service.trace(request.protocol, request.type_name, request.hex_data)
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+        # Hex format error or similar - arguably user error, but consistent with 'diagnostics' approach
+        # we can return it as failure.
+        return {
+            "status": "failure",
+            "protocol": request.protocol,
+            "type_name": request.type_name,
+            "error": str(exc),
+            "diagnostics": str(exc)
+        }
     except asn1tools.ConstraintsError as exc:
-        raise HTTPException(status_code=400, detail=f"Validation Error: {str(exc)}")
+        return {
+            "status": "failure",
+            "protocol": request.protocol,
+            "type_name": request.type_name,
+            "error": f"Validation Error: {str(exc)}",
+            "diagnostics": str(exc)
+        }
     except asn1tools.DecodeError as exc:
-        raise HTTPException(status_code=400, detail=f"Decode Error: {str(exc)}")
+        return {
+            "status": "failure",
+            "protocol": request.protocol,
+            "type_name": request.type_name,
+            "error": f"Decode Error: {str(exc)}",
+            "diagnostics": str(exc)
+        }
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Internal Error: {str(exc)}")
 
@@ -249,5 +292,8 @@ async def generate_code(request: CodegenRequest):
         )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+    except FileNotFoundError as e:
+         # Missing dependency (asn1c)
+         raise HTTPException(status_code=503, detail=str(e))
     except RuntimeError as e:
          raise HTTPException(status_code=500, detail=str(e))

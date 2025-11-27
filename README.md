@@ -66,6 +66,46 @@ npm run dev
 ```
 Client will start at `http://localhost:5173` (or the next free port). The UI calls the backend at `VITE_API_BASE`. When unset, it autodetects common Vite dev ports and talks to `http://localhost:8010`; otherwise it uses same-origin requests.
 
+## Desktop Application (Electron)
+
+The application can be packaged as a standalone desktop app (EXE on Windows). This bundles the Python backend and the React frontend into a single installer.
+
+### Prerequisites
+- Everything listed above.
+- `PyInstaller` (installed via `backend/requirements.txt`).
+- `electron-builder` (installed via `frontend/npm install`).
+
+### Build Instructions
+To build the desktop installer:
+
+```powershell
+# From project root
+python scripts/build_desktop.py
+```
+
+This script performs the following steps:
+1.  Builds the React Frontend (`npm run build`).
+2.  Bundles the Python Backend into a standalone executable (`PyInstaller`).
+3.  Packages everything into an Electron application using `electron-builder`.
+
+**Output**:
+- **Installer**: `frontend/release/ASN Processor Setup 0.0.0.exe`
+- **Unpacked**: `frontend/release/win-unpacked/`
+
+### Troubleshooting Desktop App
+Logs are written to your user profile directory:
+- `%USERPROFILE%\AsnProcessorLogs\electron.log` (Frontend/Launcher logs)
+- `%USERPROFILE%\AsnProcessorLogs\backend.log` (Python Backend logs)
+
+In the application, press `Ctrl+Shift+I` to open the Developer Tools.
+
+### Service Mode (Configuration)
+The desktop application includes a configuration interface (Service Mode):
+1. Click the **Settings (Gear)** icon in the header.
+2. **ASN Spec Directories**: Add or remove folders containing `.asn` files to dynamically load protocols.
+3. **Automatic Reload**: The backend automatically recompiles protocols when the configuration is saved.
+4. **Persistence**: Settings are stored in `%APPDATA%\AsnProcessor\config.json` (Windows) or `~/.config/asn_processor/config.json` (Linux/Mac).
+
 ## Quality Checks
 
 Run these commands from the project root:
@@ -73,6 +113,12 @@ Run these commands from the project root:
 ### Tests & Coverage
 ```bash
 python -m pytest --cov=backend/routers --cov=backend/core backend/tests/
+```
+
+### Release Verification (Desktop)
+To verify the packaged backend executable against integration tests:
+```bash
+python scripts/test_release.py
 ```
 
 ### Linting (Ruff)

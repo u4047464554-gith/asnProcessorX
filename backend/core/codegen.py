@@ -36,7 +36,7 @@ class CodegenService:
         if system_path:
             return system_path
             
-        raise RuntimeError("asn1c binary not found. Please build it or install it in system PATH.")
+        raise FileNotFoundError("asn1c binary not found. Please build it or install it in system PATH.")
 
     def generate_c_stubs(self, 
                          protocol: str, 
@@ -153,4 +153,8 @@ class CodegenService:
                 zipf.writestr("manifest.json", json.dumps(manifest, indent=2))
 
             return zip_path
+
+
+
+
 

@@ -45,7 +45,7 @@ def test_get_asn1c_path_missing(mock_exists, mock_which, codegen_service):
     mock_exists.return_value = False
     mock_which.return_value = None
     
-    with pytest.raises(RuntimeError, match="asn1c binary not found"):
+    with pytest.raises(FileNotFoundError, match="asn1c binary not found"):
         codegen_service._get_asn1c_path()
 
 @patch("backend.core.codegen.subprocess.run")
