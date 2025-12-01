@@ -163,3 +163,121 @@ def test_recursive_conversion(compiler):
     encoded = compiler.encode('RecursiveSeq', converted)
     assert len(encoded) > 0
 
+
+def test_empty_sequence_in_choice(compiler):
+    """Test CHOICE with empty SEQUENCE {} option (like criticalExtensionsFuture in RRC)."""
+    asn_spec = """
+    TestEmptySeq DEFINITIONS AUTOMATIC TAGS ::=
+    BEGIN
+        TestChoice ::= CHOICE {
+            normalOption    SEQUENCE { value INTEGER },
+            emptyOption     SEQUENCE {}
+        }
+    END
+    """
+    test_compiler = asn1tools.compile_string(asn_spec, codec='per')
+    type_obj = test_compiler.types['TestChoice']
+    
+    # Test 1: Empty sequence as dict {}
+    input_data = {'emptyOption': {}}
+    converted = convert_to_python_asn1(input_data, type_obj)
+    assert converted == ('emptyOption', {})
+    encoded = test_compiler.encode('TestChoice', converted)
+    assert len(encoded) > 0
+    
+    # Test 2: Empty sequence as None (should convert to {})
+    input_data = {'emptyOption': None}
+    converted = convert_to_python_asn1(input_data, type_obj)
+    assert converted == ('emptyOption', {})
+    encoded = test_compiler.encode('TestChoice', converted)
+    assert len(encoded) > 0
+    
+    # Test 3: Normal option still works
+    input_data = {'normalOption': {'value': 42}}
+    converted = convert_to_python_asn1(input_data, type_obj)
+    assert converted == ('normalOption', {'value': 42})
+    encoded = test_compiler.encode('TestChoice', converted)
+    assert len(encoded) > 0
+
+
+def test_empty_sequence_standalone(compiler):
+    """Test standalone empty SEQUENCE {} type."""
+    asn_spec = """
+    TestEmptySeq DEFINITIONS AUTOMATIC TAGS ::=
+    BEGIN
+        EmptySeq ::= SEQUENCE {}
+        Container ::= SEQUENCE {
+            emptyField    EmptySeq,
+            normalField   INTEGER
+        }
+    END
+    """
+    test_compiler = asn1tools.compile_string(asn_spec, codec='per')
+    type_obj = test_compiler.types['Container']
+    
+    # Test with empty dict
+    input_data = {'emptyField': {}, 'normalField': 100}
+    converted = convert_to_python_asn1(input_data, type_obj)
+    assert converted['emptyField'] == {}
+    assert converted['normalField'] == 100
+    encoded = test_compiler.encode('Container', converted)
+    assert len(encoded) > 0
+    
+    # Test with None (should convert to {})
+    input_data = {'emptyField': None, 'normalField': 100}
+    converted = convert_to_python_asn1(input_data, type_obj)
+    assert converted['emptyField'] == {}
+    assert converted['normalField'] == 100
+    encoded = test_compiler.encode('Container', converted)
+    assert len(encoded) > 0
+
+
+def test_rrc_reconfiguration_like_structure():
+    """Test structure similar to RRCReconfiguration with criticalExtensionsFuture."""
+    asn_spec = """
+    RRCReconfigTest DEFINITIONS AUTOMATIC TAGS ::=
+    BEGIN
+        RRCReconfiguration ::= SEQUENCE {
+            rrc-TransactionIdentifier    INTEGER (0..3),
+            criticalExtensions            CHOICE {
+                rrcReconfiguration          SEQUENCE { value INTEGER },
+                criticalExtensionsFuture    SEQUENCE {}
+            }
+        }
+    END
+    """
+    test_compiler = asn1tools.compile_string(asn_spec, codec='per')
+    type_obj = test_compiler.types['RRCReconfiguration']
+    
+    # Test with criticalExtensionsFuture (empty sequence)
+    input_data = {
+        'rrc-TransactionIdentifier': 0,
+        'criticalExtensions': {'criticalExtensionsFuture': {}}
+    }
+    converted = convert_to_python_asn1(input_data, type_obj)
+    assert converted['rrc-TransactionIdentifier'] == 0
+    assert converted['criticalExtensions'] == ('criticalExtensionsFuture', {})
+    encoded = test_compiler.encode('RRCReconfiguration', converted)
+    assert len(encoded) > 0
+    
+    # Test with criticalExtensionsFuture as None (should convert to {})
+    input_data = {
+        'rrc-TransactionIdentifier': 0,
+        'criticalExtensions': {'criticalExtensionsFuture': None}
+    }
+    converted = convert_to_python_asn1(input_data, type_obj)
+    assert converted['criticalExtensions'] == ('criticalExtensionsFuture', {})
+    encoded = test_compiler.encode('RRCReconfiguration', converted)
+    assert len(encoded) > 0
+    
+    # Test with normal option
+    input_data = {
+        'rrc-TransactionIdentifier': 1,
+        'criticalExtensions': {'rrcReconfiguration': {'value': 42}}
+    }
+    converted = convert_to_python_asn1(input_data, type_obj)
+    assert converted['criticalExtensions'] == ('rrcReconfiguration', {'value': 42})
+    encoded = test_compiler.encode('RRCReconfiguration', converted)
+    assert len(encoded) > 0
+
+

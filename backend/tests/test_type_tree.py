@@ -59,3 +59,6 @@ def test_build_tree_choice_sequence_of():
     assert len(list_tree['children']) == 1
     assert list_tree['children'][0]['kind'] == 'Integer'
 
+
+
+

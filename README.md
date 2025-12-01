@@ -88,8 +88,8 @@ Start the backend and frontend servers:
 python backend/run_server.py
 
 # Terminal 2 (Frontend)
-cd frontend
-npm run dev
+npm run dev   # runs frontend dev server from repo root
+# (or cd frontend && npm run dev if you prefer)
 ```
 Access the web app at `http://localhost:5173`.
 

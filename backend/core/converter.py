@@ -54,9 +54,13 @@ def convert_to_python_asn1(data: Any, type_obj: Any) -> Any:
 
     # Handle Sequence / Set
     if type_cls in ('Sequence', 'Set'):
+        # Handle empty sequences: if data is None and sequence has no members, return {}
+        members = _get_members(real_type)
+        if data is None and len(members) == 0:
+            return {}
+        
         if isinstance(data, dict):
             converted = {}
-            members = _get_members(real_type)
             for member in members:
                 if member.name in data:
                     converted[member.name] = convert_to_python_asn1(data[member.name], member)
@@ -69,6 +73,10 @@ def convert_to_python_asn1(data: Any, type_obj: Any) -> Any:
                 if k not in converted:
                     converted[k] = deserialize_asn1_data(v)
             return converted
+        
+        # If data is None but sequence has members, return empty dict (will use defaults/optionals)
+        if data is None:
+            return {}
 
     # Handle SequenceOf / SetOf
     if type_cls in ('SequenceOf', 'SetOf'):

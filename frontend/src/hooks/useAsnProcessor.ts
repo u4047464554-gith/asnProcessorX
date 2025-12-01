@@ -50,7 +50,13 @@ export const useAsnProcessor = () => {
     }, []);
 
     useEffect(() => {
-        AsnService.getProtocols().then(setProtocols).catch(console.error);
+        AsnService.getProtocols()
+            .then(setProtocols)
+            .catch((err) => {
+                console.error('Failed to load protocols:', err);
+                setError(`Failed to load protocols: ${err.message || 'Backend not available. Is the server running on http://localhost:8010?'}`);
+                setProtocols([]);
+            });
     }, []);
 
     useEffect(() => {
@@ -220,6 +226,8 @@ export const useAsnProcessor = () => {
         if (!value) {
             setSelectedType(null);
             setJsonData('');
+            setError(null);
+            setTraceError(null);
             return;
         }
         const parts = value.split('::');
@@ -236,8 +244,10 @@ export const useAsnProcessor = () => {
                  setJsonData(JSON.stringify(msg.data, null, 2));
                  setLastEdited('json');
                  setError(null);
+                 setTraceError(null);
              }).catch(err => {
                  setError("Failed to load message: " + (err.response?.data?.detail || err.message));
+                 setTraceError(null);
              }).finally(() => setLoading(false));
              return;
         }
@@ -260,9 +270,16 @@ export const useAsnProcessor = () => {
                  setJsonData(JSON.stringify(example, null, 2));
                  setLastEdited('json');
                  setError(null);
+                 setTraceError(null);
+             } else {
+                 setJsonData('');
+                 setError(null);
+                 setTraceError(null);
              }
         } else {
             setJsonData('');
+            setError(null);
+            setTraceError(null);
         }
     };
 
@@ -307,7 +324,15 @@ export const useAsnProcessor = () => {
     };
 
     const loadExample = () => {
-         handleDemoSelect(selectedDemoOption);
+        // Clear all error states first
+        setError(null);
+        setTraceError(null);
+        // Reset hex data to force fresh encoding
+        setHexData('');
+        setFormattedHex('');
+        setTraceData(null);
+        // Reload the example data
+        handleDemoSelect(selectedDemoOption);
     };
 
     const handleCodegen = async () => {

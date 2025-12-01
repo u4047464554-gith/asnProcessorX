@@ -93,6 +93,16 @@ function createWindow() {
     }
 
     mainWindow.on('closed', () => {
+        // Clean up backend process when window closes
+        if (backendProcess) {
+            log('Window closed, killing backend process');
+            try {
+                backendProcess.kill();
+            } catch (e) {
+                log(`Error killing backend: ${e.message}`);
+            }
+            backendProcess = null;
+        }
         mainWindow = null;
     });
 }
@@ -104,6 +114,20 @@ function startBackendAndWindow() {
         return;
     }
     createWindow(); 
+
+    // Clean up any existing backend process
+    if (backendProcess) {
+        log('Cleaning up existing backend process');
+        try {
+            backendProcess.kill();
+            backendProcess = null;
+        } catch (e) {
+            log(`Error killing existing backend: ${e.message}`);
+        }
+    }
+    
+    isBackendReady = false;
+    buffer = '';
 
     let backendPath;
     if (process.platform === 'win32') {
@@ -154,10 +178,13 @@ function startBackendAndWindow() {
                 log(`Waiting ${remaining}ms for splash...`);
 
                 setTimeout(() => {
-                    if (mainWindow) {
+                    if (mainWindow && !mainWindow.isDestroyed() && isBackendReady) {
                         const url = `http://127.0.0.1:${port}`;
                         log(`Navigating to ${url}`);
-                        mainWindow.loadURL(url);
+                        mainWindow.loadURL(url).catch((err) => {
+                            log(`Failed to load URL: ${err.message}`);
+                            reportError(`Failed to load application: ${err.message}`);
+                        });
                     }
                 }, remaining);
             }
@@ -170,13 +197,21 @@ function startBackendAndWindow() {
 
     backendProcess.on('close', (code) => {
         log(`Backend exited with code ${code}`);
-        if (code !== 0 && code !== null) {
-             reportError(`Backend exited code ${code}`);
+        backendProcess = null; // Clear reference
+        if (!isBackendReady) {
+            // Backend died before ready - show error
+            clearTimeout(timeout);
+            reportError(`Backend exited with code ${code} before startup.\nCheck logs in ${logDir}`);
+        } else if (code !== 0 && code !== null && mainWindow && !mainWindow.isDestroyed()) {
+            // Backend died after ready - show error
+            reportError(`Backend process exited unexpectedly (code ${code}).\nCheck logs in ${logDir}`);
         }
     });
     
     backendProcess.on('error', (err) => {
         log(`Backend process error: ${err.message}`);
+        clearTimeout(timeout);
+        backendProcess = null; // Clear reference
         reportError(`Process error: ${err.message}`);
     });
 }
@@ -195,12 +230,40 @@ function reportError(msg) {
 }
 
 app.on('window-all-closed', () => {
+    // Clean up backend before quitting
+    if (backendProcess) {
+        log('App closing, killing backend process');
+        try {
+            backendProcess.kill();
+            backendProcess = null;
+        } catch (e) {
+            log(`Error killing backend: ${e.message}`);
+        }
+    }
     if (process.platform !== 'darwin') app.quit();
 });
 
-app.on('will-quit', () => {
+app.on('will-quit', (event) => {
     if (backendProcess) {
-        backendProcess.kill(); 
+        log('App will-quit, killing backend process');
+        try {
+            backendProcess.kill();
+            backendProcess = null;
+        } catch (e) {
+            log(`Error killing backend: ${e.message}`);
+        }
+    }
+});
+
+app.on('before-quit', () => {
+    if (backendProcess) {
+        log('App before-quit, killing backend process');
+        try {
+            backendProcess.kill();
+            backendProcess = null;
+        } catch (e) {
+            log(`Error killing backend: ${e.message}`);
+        }
     }
 });
 

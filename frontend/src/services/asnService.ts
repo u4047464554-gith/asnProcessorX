@@ -8,7 +8,7 @@ const resolveApiBase = () => {
     return import.meta.env.VITE_API_BASE as string;
   }
   if (import.meta.env.DEV) {
-    return 'http://localhost:8010';
+    return 'http://localhost:8000';
   }
   return undefined;
 };

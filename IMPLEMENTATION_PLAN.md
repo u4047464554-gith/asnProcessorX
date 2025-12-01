@@ -1,6 +1,6 @@
 # ASN.1 Processor - Release 1.0 Implementation Plan
 
-## Current Status: ✅ Release Candidate Ready (v0.2.0)
+## Current Status: ✅ Release Candidate Ready (v0.3.0)
 
 **User Feedback**: Current feature set is sufficient for initial release. Focus shifts to stability, documentation, and release management.
 

@@ -8,3 +8,6 @@ export const downloadBlob = (blob: Blob, filename: string) => {
     link.remove();
 }
 
+
+
+

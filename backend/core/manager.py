@@ -3,11 +3,15 @@ import glob
 import sys
 import json
 import re
+import threading
+import time
 from dataclasses import dataclass, asdict
-from typing import Dict, Optional, List, Any
+from typing import Dict, Optional, List, Any, Tuple
 
 from backend.core.asn1_runtime import asn1tools
 from backend.core.config import config_manager
+
+TRACKED_EXTENSIONS = {".asn", ".json"}
 
 
 @dataclass
@@ -28,6 +32,11 @@ class AsnManager:
         self.compilers: Dict[str, asn1tools.compiler.Specification] = {}
         self.metadata: Dict[str, ProtocolMetadata] = {}
         self.examples: Dict[str, Dict[str, Any]] = {}
+        self._lock = threading.RLock()
+        self._current_paths: List[str] = []
+        self._snapshot_state: Dict[str, Tuple[float, int]] = {}
+        self._last_snapshot_check: float = 0.0
+        self._snapshot_interval: float = 2.0  # seconds
         self.load_protocols()
         
     def _resolve_specs_paths(self) -> List[str]:
@@ -58,12 +67,62 @@ class AsnManager:
                     
         return paths
 
+    def _stat_entry(self, path: str) -> Tuple[float, int]:
+        try:
+            stat = os.stat(path)
+            return (stat.st_mtime, stat.st_size)
+        except OSError:
+            return (0.0, 0)
+
+    def _capture_snapshot(self, paths: List[str]) -> Dict[str, Tuple[float, int]]:
+        snapshot: Dict[str, Tuple[float, int]] = {}
+        for specs_dir in paths:
+            if not os.path.isdir(specs_dir):
+                continue
+            snapshot[specs_dir] = self._stat_entry(specs_dir)
+            try:
+                entries = os.listdir(specs_dir)
+            except OSError:
+                continue
+
+            for entry in entries:
+                proto_path = os.path.join(specs_dir, entry)
+                if not os.path.isdir(proto_path):
+                    continue
+                snapshot[proto_path] = self._stat_entry(proto_path)
+
+                for file_path in glob.glob(os.path.join(proto_path, "*")):
+                    if not os.path.isfile(file_path):
+                        continue
+                    ext = os.path.splitext(file_path)[1].lower()
+                    if ext not in TRACKED_EXTENSIONS:
+                        continue
+                    snapshot[file_path] = self._stat_entry(file_path)
+        return snapshot
+
+    def _ensure_latest_locked(self):
+        now = time.monotonic()
+        if now - self._last_snapshot_check < self._snapshot_interval:
+            return
+
+        paths = self._current_paths or self._resolve_specs_paths()
+        new_snapshot = self._capture_snapshot(paths)
+        if new_snapshot != self._snapshot_state:
+            print("[AsnManager] Detected ASN.1 spec changes, reloading...")
+            self._load_protocols_locked(paths)
+        else:
+            self._last_snapshot_check = now
+
     def load_protocols(self) -> Dict[str, str]:
+        with self._lock:
+            return self._load_protocols_locked()
+
+    def _load_protocols_locked(self, search_paths: Optional[List[str]] = None) -> Dict[str, str]:
         """
         Scans all configured specs directories.
         Returns a dict of protocol_name -> error_message for any failures.
         """
-        search_paths = self._resolve_specs_paths()
+        search_paths = search_paths or self._resolve_specs_paths()
         print(f"[AsnManager] Scanning paths: {search_paths}")
         
         # We use temporary dicts to build the new state
@@ -140,35 +199,46 @@ class AsnManager:
         self.compilers = new_compilers
         self.metadata = new_metadata
         self.examples = new_examples
+        self._current_paths = list(search_paths)
+        self._snapshot_state = self._capture_snapshot(self._current_paths)
+        self._last_snapshot_check = time.monotonic()
         
         return errors
 
     def get_compiler(self, protocol: str) -> Optional[asn1tools.compiler.Specification]:
-        return self.compilers.get(protocol)
+        with self._lock:
+            self._ensure_latest_locked()
+            return self.compilers.get(protocol)
 
     def reload(self) -> Dict[str, str]:
-        # Reload config in case it changed
-        config_manager.reload()
-        return self.load_protocols()
+        with self._lock:
+            # Reload config in case it changed
+            config_manager.reload()
+            return self._load_protocols_locked()
 
     def list_protocols(self) -> List[str]:
-        return list(self.compilers.keys())
+        with self._lock:
+            self._ensure_latest_locked()
+            return list(self.compilers.keys())
 
     def get_protocol_metadata(self, protocol: str) -> Optional[Dict[str, Any]]:
-        meta = self.metadata.get(protocol)
-        return meta.to_dict() if meta else None
+        with self._lock:
+            self._ensure_latest_locked()
+            meta = self.metadata.get(protocol)
+            return meta.to_dict() if meta else None
 
     def list_metadata(self) -> List[Dict[str, Any]]:
-        return [meta.to_dict() for meta in self.metadata.values()]
+        with self._lock:
+            self._ensure_latest_locked()
+            return [meta.to_dict() for meta in self.metadata.values()]
 
     def get_examples(self, protocol: str) -> Dict[str, Any]:
-        return self.examples.get(protocol, {})
+        with self._lock:
+            self._ensure_latest_locked()
+            return self.examples.get(protocol, {})
     
-    def get_protocol_path(self, protocol: str) -> Optional[str]:
-        """
-        Finds the absolute path on disk for a given protocol name.
-        """
-        search_paths = self._resolve_specs_paths()
+    def _get_protocol_path_locked(self, protocol: str) -> Optional[str]:
+        search_paths = self._current_paths or self._resolve_specs_paths()
         for specs_dir in search_paths:
             if not os.path.isdir(specs_dir):
                 continue
@@ -177,14 +247,25 @@ class AsnManager:
                 return os.path.abspath(proto_path)
         return None
 
+    def get_protocol_path(self, protocol: str) -> Optional[str]:
+        """
+        Finds the absolute path on disk for a given protocol name.
+        """
+        with self._lock:
+            self._ensure_latest_locked()
+            return self._get_protocol_path_locked(protocol)
+
     def scan_definitions(self, protocol: str) -> Dict[str, List[str]]:
         """
         Scans .asn files in the protocol directory and returns a mapping of
         filename -> [list of defined types].
         """
-        path = self.get_protocol_path(protocol)
-        if not path: return {}
-        
+        with self._lock:
+            self._ensure_latest_locked()
+            path = self._get_protocol_path_locked(protocol)
+        if not path:
+            return {}
+
         result = {}
         asn_files = sorted(glob.glob(os.path.join(path, "*.asn")))
         for f in asn_files:

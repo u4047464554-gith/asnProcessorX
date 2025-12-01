@@ -18,9 +18,10 @@ import {
   MantineProvider,
   SegmentedControl,
   TextInput,
-  ActionIcon
+  ActionIcon,
+  Divider
 } from '@mantine/core'
-import { IconSettings, IconLayoutSidebarRight, IconTrash, IconDeviceFloppy, IconDatabase } from '@tabler/icons-react'
+import { IconSettings, IconLayoutSidebarRight, IconTrash, IconDeviceFloppy, IconDatabase, IconCopy, IconFolderOpen } from '@tabler/icons-react'
 import { BitInspectorPanel } from './components/trace/BitInspectorPanel'
 import { DefinitionTree } from './components/definition/DefinitionTree'
 import { SettingsModal } from './components/SettingsModal'
@@ -61,6 +62,17 @@ function App() {
   const [saveModalOpen, setSaveModalOpen] = useState(false)
   const [saveFilename, setSaveFilename] = useState('')
   const [memoryModalOpen, setMemoryModalOpen] = useState(false)
+  const [hexInputType, setHexInputType] = useState<'raw' | '0x'>('raw')
+  const [copiedHex, setCopiedHex] = useState(false)
+  const [copiedJson, setCopiedJson] = useState(false)
+  const [savedHex, setSavedHex] = useState(false)
+  const [savedJson, setSavedJson] = useState(false)
+  const [saveHexModalOpen, setSaveHexModalOpen] = useState(false)
+  const [saveHexFilename, setSaveHexFilename] = useState('')
+  const [saveJsonModalOpen, setSaveJsonModalOpen] = useState(false)
+  const [saveJsonFilename, setSaveJsonFilename] = useState('')
+  const [loadHexModalOpen, setLoadHexModalOpen] = useState(false)
+  const [loadJsonModalOpen, setLoadJsonModalOpen] = useState(false)
 
   // Theme State
   const [currentThemeName, setCurrentThemeName] = useState<string>(() => {
@@ -70,6 +82,94 @@ function App() {
   const handleThemeChange = (name: string) => {
       setCurrentThemeName(name);
       localStorage.setItem('ui-theme', name);
+  };
+
+  const copyToClipboard = async (text: string, type: 'hex' | 'json') => {
+      try {
+          await navigator.clipboard.writeText(text);
+          if (type === 'hex') {
+              setCopiedHex(true);
+              setTimeout(() => setCopiedHex(false), 2000);
+          } else {
+              setCopiedJson(true);
+              setTimeout(() => setCopiedJson(false), 2000);
+          }
+      } catch (err) {
+          console.error('Failed to copy:', err);
+      }
+  };
+
+  const saveToMemory = (type: 'hex' | 'json', name: string) => {
+      const data = type === 'hex' ? (hexInputType === 'raw' ? hexData : formattedHex) : jsonData;
+      if (!data || !name) return false;
+      
+      const key = `asn_memory_${type}`;
+      const timestamp = new Date().toISOString();
+      const saved = JSON.parse(localStorage.getItem(key) || '[]');
+      
+      // Check if name already exists and overwrite, or add new
+      const existingIndex = saved.findIndex((item: any) => item.name === name);
+      if (existingIndex >= 0) {
+          saved[existingIndex] = { name, data, timestamp };
+      } else {
+          saved.push({ name, data, timestamp });
+      }
+      localStorage.setItem(key, JSON.stringify(saved));
+      
+      // Show feedback
+      if (type === 'hex') {
+          setSavedHex(true);
+          setTimeout(() => setSavedHex(false), 2000);
+      } else {
+          setSavedJson(true);
+          setTimeout(() => setSavedJson(false), 2000);
+      }
+      return true;
+  };
+
+  const handleSaveHex = () => {
+      if (!saveHexFilename) return;
+      const success = saveToMemory('hex', saveHexFilename);
+      if (success) {
+          setSaveHexModalOpen(false);
+          setSaveHexFilename('');
+      }
+  };
+
+  const handleSaveJson = () => {
+      if (!saveJsonFilename) return;
+      const success = saveToMemory('json', saveJsonFilename);
+      if (success) {
+          setSaveJsonModalOpen(false);
+          setSaveJsonFilename('');
+      }
+  };
+
+  const getSavedItems = (type: 'hex' | 'json') => {
+      const key = `asn_memory_${type}`;
+      return JSON.parse(localStorage.getItem(key) || '[]');
+  };
+
+  const loadFromMemory = (type: 'hex' | 'json', name: string) => {
+      const key = `asn_memory_${type}`;
+      const saved = JSON.parse(localStorage.getItem(key) || '[]');
+      const item = saved.find((item: any) => item.name === name);
+      if (!item) return;
+      
+      if (type === 'hex') {
+          if (hexInputType === 'raw') {
+              setHexData(item.data);
+              setFormattedHex(hexTo0xHex(item.data));
+          } else {
+              setFormattedHex(item.data);
+              const hex = xHexToHex(item.data);
+              if (hex) setHexData(hex);
+          }
+          setLastEdited('hex');
+      } else {
+          setJsonData(item.data);
+          setLastEdited('json');
+      }
   };
 
   // UI Effects
@@ -100,47 +200,59 @@ function App() {
     >
       <AppShell.Header>
         {currentThemeName.includes('Star Trek') && <StarTrekShip />}
-        <Group h="100%" px="md" justify="space-between" style={{ position: 'relative', zIndex: 1 }}>
-          <Title order={3}>ASN.1 Processor</Title>
-          <Group>
-            <Button
-                variant="outline"
-                size="xs"
-                disabled={!selectedProtocol}
-                onClick={() => setSchemaEditorOpen(true)}
-                aria-label="Edit Schema"
-            >
-                Edit Schema
-            </Button>
-            <Button 
-                variant="outline" 
-                size="xs" 
-                disabled={!selectedProtocol}
-                onClick={() => setCodegenModalOpen(true)}
-                aria-label="Generate C Stubs"
-            >
-                Generate C Stubs
-            </Button>
-            <Button
-                variant={inspectorOpen ? "filled" : "outline"}
-                size="xs"
-                onClick={() => setInspectorOpen(!inspectorOpen)}
-                leftSection={<IconLayoutSidebarRight size="1rem" />}
-                aria-label="Toggle Inspector"
-            >
-                Inspector
-            </Button>
-            <Button
-                variant="outline"
-                size="xs"
-                onClick={() => setSettingsOpen(true)}
-                leftSection={<IconSettings size="1rem" />}
-                aria-label="Settings"
-            >
-                Settings
-            </Button>
+        <Stack gap={0} style={{ position: 'relative', zIndex: 1 }}>
+          <Group h="100%" px="md" justify="space-between">
+            <Title order={3}>ASN.1 Processor</Title>
+            <Group>
+              <Button
+                  variant="outline"
+                  size="xs"
+                  disabled={!selectedProtocol}
+                  onClick={() => setSchemaEditorOpen(true)}
+                  aria-label="Edit Schema"
+              >
+                  Edit Schema
+              </Button>
+              <Button 
+                  variant="outline" 
+                  size="xs" 
+                  disabled={!selectedProtocol}
+                  onClick={() => setCodegenModalOpen(true)}
+                  aria-label="Generate C Stubs"
+              >
+                  Generate C Stubs
+              </Button>
+              <Button
+                  variant={inspectorOpen ? "filled" : "outline"}
+                  size="xs"
+                  onClick={() => setInspectorOpen(!inspectorOpen)}
+                  leftSection={<IconLayoutSidebarRight size="1rem" />}
+                  aria-label="Toggle Inspector"
+              >
+                  Inspector
+              </Button>
+              <Button
+                  variant="outline"
+                  size="xs"
+                  onClick={() => setSettingsOpen(true)}
+                  leftSection={<IconSettings size="1rem" />}
+                  aria-label="Settings"
+              >
+                  Settings
+              </Button>
+              <Button
+                  variant="outline"
+                  size="xs"
+                  onClick={() => setMemoryModalOpen(true)}
+                  leftSection={<IconDatabase size="1rem" />}
+                  aria-label="Memory"
+              >
+                  Memory
+              </Button>
+            </Group>
           </Group>
-        </Group>
+          <Divider />
+        </Stack>
       </AppShell.Header>
 
       <AppShell.Main>
@@ -154,7 +266,7 @@ function App() {
               searchable
             />
             <Select
-              label="Load Message" 
+              label="Message" 
               placeholder="Select message" 
               data={demoTypeOptions}
               value={selectedDemoOption}
@@ -165,12 +277,6 @@ function App() {
             />
              <Button variant="light" onClick={loadExample} disabled={!selectedDemoOption} aria-label="Reload">
                Reload
-             </Button>
-             <Button variant="default" onClick={() => setSaveModalOpen(true)} disabled={!jsonData} leftSection={<IconDeviceFloppy size="1rem"/>}>
-               Save
-             </Button>
-             <Button variant="default" onClick={() => setMemoryModalOpen(true)} leftSection={<IconDatabase size="1rem"/>}>
-               Memory
              </Button>
         </Group>
 
@@ -199,49 +305,107 @@ function App() {
         <Grid gutter="md">
             <Grid.Col span={inspectorOpen ? 6 : 12}>
                 <Stack gap="md">
-                  <Paper withBorder p="md">
-                    <Stack gap="md">
-                      <Text fw={600}>Hex Input</Text>
-                      <Textarea
-                        placeholder="80 05 ..."
-                        minRows={3}
-                        maxRows={8}
-                        autosize
-                        value={hexData}
-                        onChange={(e) => {
-                            const val = e.currentTarget.value
-                            setHexData(val)
-                            setFormattedHex(hexTo0xHex(val))
-                            setLastEdited('hex')
-                        }}
-                        style={{ fontFamily: 'monospace' }}
-                      />
-                      
-                      <Text fw={600}>0x Hex</Text>
-                      <Textarea
-                        placeholder="0x..."
-                        minRows={2}
-                        maxRows={5}
-                        autosize
-                        value={formattedHex}
-                        onChange={(e) => {
-                            const val = e.currentTarget.value
-                            setFormattedHex(val)
-                            const hex = xHexToHex(val)
-                            if (hex) {
-                                setHexData(hex)
-                                setLastEdited('hex')
-                            }
-                        }}
-                        style={{ fontFamily: 'monospace' }}
-                      />
-                    </Stack>
-                  </Paper>
-                  
+                  {!inspectorOpen && (
+                    <Paper withBorder p="md">
+                      <Stack gap="md">
+                        <Group justify="space-between">
+                            <Group gap="xs">
+                                <Text fw={600}>Hex</Text>
+                                <ActionIcon 
+                                    size="sm" 
+                                    variant="subtle" 
+                                    onClick={() => copyToClipboard(hexInputType === 'raw' ? hexData : formattedHex, 'hex')}
+                                    title="Copy to clipboard"
+                                    color={copiedHex ? 'green' : undefined}
+                                >
+                                    <IconCopy size="0.875rem" />
+                                </ActionIcon>
+                                <ActionIcon 
+                                    size="sm" 
+                                    variant="subtle" 
+                                    onClick={() => setSaveHexModalOpen(true)}
+                                    title="Save to Memory"
+                                    disabled={!hexData && !formattedHex}
+                                >
+                                    <IconDeviceFloppy size="0.875rem" />
+                                </ActionIcon>
+                                <ActionIcon 
+                                    size="sm" 
+                                    variant="subtle" 
+                                    onClick={() => setLoadHexModalOpen(true)}
+                                    title="Load from Memory"
+                                >
+                                    <IconFolderOpen size="0.875rem" />
+                                </ActionIcon>
+                                {copiedHex && <Text size="xs" c="green" fw={500}>Copied!</Text>}
+                                {savedHex && <Text size="xs" c="green" fw={500}>Saved!</Text>}
+                            </Group>
+                            <SegmentedControl 
+                                size="xs"
+                                value={hexInputType}
+                                onChange={(v) => setHexInputType(v as 'raw' | '0x')}
+                                data={[{ label: 'Raw Hex', value: 'raw' }, { label: '0x Hex', value: '0x' }]}
+                            />
+                        </Group>
+                        <Textarea
+                          placeholder={hexInputType === 'raw' ? "80 05 ..." : "0x80, 0x05, ..."}
+                          minRows={3}
+                          maxRows={8}
+                          autosize
+                          value={hexInputType === 'raw' ? hexData : formattedHex}
+                          onChange={(e) => {
+                              const val = e.currentTarget.value
+                              if (hexInputType === 'raw') {
+                                  setHexData(val)
+                                  setFormattedHex(hexTo0xHex(val))
+                              } else {
+                                  setFormattedHex(val)
+                                  const hex = xHexToHex(val)
+                                  if (hex) {
+                                      setHexData(hex)
+                                  }
+                              }
+                              setLastEdited('hex')
+                          }}
+                          style={{ fontFamily: 'monospace' }}
+                        />
+                      </Stack>
+                    </Paper>
+                  )}
                   <Paper withBorder p="md">
                     <Stack gap="md">
                       <Group justify="space-between">
-                          <Text fw={600}>JSON Input</Text>
+                          <Group gap="xs">
+                              <Text fw={600}>JSON</Text>
+                              <ActionIcon 
+                                  size="sm" 
+                                  variant="subtle" 
+                                  onClick={() => copyToClipboard(jsonData, 'json')}
+                                  title="Copy to clipboard"
+                                  color={copiedJson ? 'green' : undefined}
+                              >
+                                  <IconCopy size="0.875rem" />
+                              </ActionIcon>
+                              <ActionIcon 
+                                  size="sm" 
+                                  variant="subtle" 
+                                  onClick={() => setSaveJsonModalOpen(true)}
+                                  title="Save to Memory"
+                                  disabled={!jsonData}
+                              >
+                                  <IconDeviceFloppy size="0.875rem" />
+                              </ActionIcon>
+                              <ActionIcon 
+                                  size="sm" 
+                                  variant="subtle" 
+                                  onClick={() => setLoadJsonModalOpen(true)}
+                                  title="Load from Memory"
+                              >
+                                  <IconFolderOpen size="0.875rem" />
+                              </ActionIcon>
+                              {copiedJson && <Text size="xs" c="green" fw={500}>Copied!</Text>}
+                              {savedJson && <Text size="xs" c="green" fw={500}>Saved!</Text>}
+                          </Group>
                           <SegmentedControl 
                               size="xs"
                               value={editorMode}
@@ -285,22 +449,89 @@ function App() {
             
             {inspectorOpen && (
                 <Grid.Col span={6}>
-                    <Paper withBorder p="md" h="100%" style={{ minHeight: '500px' }}>
-                        <Stack h="100%">
-                            <Text fw={600}>Bit Inspector</Text>
-                            <Box style={{ flex: 1, position: 'relative' }}>
-                                <ScrollArea h="100%">
-                                    <BitInspectorPanel
-                                        hexInput={hexData}
-                                        traceRoot={traceData?.trace}
-                                        totalBits={traceData?.total_bits}
-                                        loading={traceLoading}
-                                        error={traceError}
+                    <Stack gap="md" h="100%">
+                        <Paper withBorder p="md">
+                            <Stack gap="md">
+                                <Group justify="space-between">
+                                    <Group gap="xs">
+                                        <Text fw={600}>Hex</Text>
+                                        <ActionIcon 
+                                            size="sm" 
+                                            variant="subtle" 
+                                            onClick={() => copyToClipboard(hexInputType === 'raw' ? hexData : formattedHex, 'hex')}
+                                            title="Copy to clipboard"
+                                            color={copiedHex ? 'green' : undefined}
+                                        >
+                                            <IconCopy size="0.875rem" />
+                                        </ActionIcon>
+                                        <ActionIcon 
+                                            size="sm" 
+                                            variant="subtle" 
+                                            onClick={() => setSaveHexModalOpen(true)}
+                                            title="Save to Memory"
+                                            disabled={!hexData && !formattedHex}
+                                        >
+                                            <IconDeviceFloppy size="0.875rem" />
+                                        </ActionIcon>
+                                        <ActionIcon 
+                                            size="sm" 
+                                            variant="subtle" 
+                                            onClick={() => setLoadHexModalOpen(true)}
+                                            title="Load from Memory"
+                                        >
+                                            <IconFolderOpen size="0.875rem" />
+                                        </ActionIcon>
+                                        {copiedHex && <Text size="xs" c="green" fw={500}>Copied!</Text>}
+                                {savedHex && <Text size="xs" c="green" fw={500}>Saved!</Text>}
+                                    </Group>
+                                    <SegmentedControl 
+                                        size="xs"
+                                        value={hexInputType}
+                                        onChange={(v) => setHexInputType(v as 'raw' | '0x')}
+                                        data={[{ label: 'Raw Hex', value: 'raw' }, { label: '0x Hex', value: '0x' }]}
                                     />
-                                </ScrollArea>
-                            </Box>
-                        </Stack>
-                    </Paper>
+                                </Group>
+                                <Textarea
+                                    placeholder={hexInputType === 'raw' ? "80 05 ..." : "0x80, 0x05, ..."}
+                                    minRows={3}
+                                    maxRows={8}
+                                    autosize
+                                    value={hexInputType === 'raw' ? hexData : formattedHex}
+                                    onChange={(e) => {
+                                        const val = e.currentTarget.value
+                                        if (hexInputType === 'raw') {
+                                            setHexData(val)
+                                            setFormattedHex(hexTo0xHex(val))
+                                        } else {
+                                            setFormattedHex(val)
+                                            const hex = xHexToHex(val)
+                                            if (hex) {
+                                                setHexData(hex)
+                                            }
+                                        }
+                                        setLastEdited('hex')
+                                    }}
+                                    style={{ fontFamily: 'monospace' }}
+                                />
+                            </Stack>
+                        </Paper>
+                        <Paper withBorder p="md" style={{ flex: 1, minHeight: '400px' }}>
+                            <Stack h="100%">
+                                <Text fw={600}>Bit Inspector</Text>
+                                <Box style={{ flex: 1, position: 'relative' }}>
+                                    <ScrollArea h="100%">
+                                        <BitInspectorPanel
+                                            hexInput={hexData}
+                                            traceRoot={traceData?.trace}
+                                            totalBits={traceData?.total_bits}
+                                            loading={traceLoading}
+                                            error={traceError}
+                                        />
+                                    </ScrollArea>
+                                </Box>
+                            </Stack>
+                        </Paper>
+                    </Stack>
                 </Grid.Col>
             )}
         </Grid>
@@ -356,6 +587,154 @@ function App() {
                 <Group justify="flex-end">
                     <Button variant="default" onClick={() => setSaveModalOpen(false)}>Cancel</Button>
                     <Button onClick={onSave}>Save</Button>
+                </Group>
+            </Stack>
+        </Modal>
+
+        <Modal 
+            opened={saveHexModalOpen} 
+            onClose={() => {
+                setSaveHexModalOpen(false);
+                setSaveHexFilename('');
+            }} 
+            title="Save Hex to Memory"
+        >
+            <Stack>
+                <TextInput 
+                    label="Name" 
+                    placeholder="hex_data_1" 
+                    value={saveHexFilename} 
+                    onChange={(e) => setSaveHexFilename(e.currentTarget.value)}
+                    data-autofocus
+                    onKeyDown={(e) => { if(e.key === 'Enter') handleSaveHex(); }}
+                />
+                <Text size="xs" c="dimmed">
+                    Enter a name for this hex data. If the name already exists, it will be overwritten.
+                </Text>
+                <Group justify="flex-end">
+                    <Button variant="default" onClick={() => {
+                        setSaveHexModalOpen(false);
+                        setSaveHexFilename('');
+                    }}>Cancel</Button>
+                    <Button onClick={handleSaveHex} disabled={!saveHexFilename}>Save</Button>
+                </Group>
+            </Stack>
+        </Modal>
+
+        <Modal 
+            opened={saveJsonModalOpen} 
+            onClose={() => {
+                setSaveJsonModalOpen(false);
+                setSaveJsonFilename('');
+            }} 
+            title="Save JSON to Memory"
+        >
+            <Stack>
+                <TextInput 
+                    label="Name" 
+                    placeholder="json_data_1" 
+                    value={saveJsonFilename} 
+                    onChange={(e) => setSaveJsonFilename(e.currentTarget.value)}
+                    data-autofocus
+                    onKeyDown={(e) => { if(e.key === 'Enter') handleSaveJson(); }}
+                />
+                <Text size="xs" c="dimmed">
+                    Enter a name for this JSON data. If the name already exists, it will be overwritten.
+                </Text>
+                <Group justify="flex-end">
+                    <Button variant="default" onClick={() => {
+                        setSaveJsonModalOpen(false);
+                        setSaveJsonFilename('');
+                    }}>Cancel</Button>
+                    <Button onClick={handleSaveJson} disabled={!saveJsonFilename}>Save</Button>
+                </Group>
+            </Stack>
+        </Modal>
+
+        <Modal 
+            opened={loadHexModalOpen} 
+            onClose={() => setLoadHexModalOpen(false)} 
+            title="Load Hex from Memory"
+        >
+            <Stack>
+                {getSavedItems('hex').length === 0 ? (
+                    <Text c="dimmed">No saved hex data.</Text>
+                ) : (
+                    <ScrollArea h={300}>
+                        <Stack gap="xs">
+                            {getSavedItems('hex').map((item: any) => (
+                                <Group key={item.name} justify="space-between" p="xs" bg="var(--mantine-color-body)" style={{ border: '1px solid var(--mantine-color-default-border)', cursor: 'pointer' }}
+                                    onClick={() => {
+                                        loadFromMemory('hex', item.name);
+                                        setLoadHexModalOpen(false);
+                                    }}
+                                >
+                                    <Stack gap={0}>
+                                        <Text size="sm" fw={500}>{item.name}</Text>
+                                        <Text size="xs" c="dimmed">{new Date(item.timestamp).toLocaleString()}</Text>
+                                    </Stack>
+                                    <ActionIcon color="red" variant="subtle" onClick={(e) => {
+                                        e.stopPropagation();
+                                        const key = 'asn_memory_hex';
+                                        const saved = JSON.parse(localStorage.getItem(key) || '[]');
+                                        const filtered = saved.filter((s: any) => s.name !== item.name);
+                                        localStorage.setItem(key, JSON.stringify(filtered));
+                                        setLoadHexModalOpen(false);
+                                        setTimeout(() => setLoadHexModalOpen(true), 0);
+                                    }}>
+                                        <IconTrash size="1rem"/>
+                                    </ActionIcon>
+                                </Group>
+                            ))}
+                        </Stack>
+                    </ScrollArea>
+                )}
+                <Group justify="flex-end" mt="md">
+                    <Button onClick={() => setLoadHexModalOpen(false)}>Close</Button>
+                </Group>
+            </Stack>
+        </Modal>
+
+        <Modal 
+            opened={loadJsonModalOpen} 
+            onClose={() => setLoadJsonModalOpen(false)} 
+            title="Load JSON from Memory"
+        >
+            <Stack>
+                {getSavedItems('json').length === 0 ? (
+                    <Text c="dimmed">No saved JSON data.</Text>
+                ) : (
+                    <ScrollArea h={300}>
+                        <Stack gap="xs">
+                            {getSavedItems('json').map((item: any) => (
+                                <Group key={item.name} justify="space-between" p="xs" bg="var(--mantine-color-body)" style={{ border: '1px solid var(--mantine-color-default-border)', cursor: 'pointer' }}
+                                    onClick={() => {
+                                        loadFromMemory('json', item.name);
+                                        setLoadJsonModalOpen(false);
+                                    }}
+                                >
+                                    <Stack gap={0}>
+                                        <Text size="sm" fw={500}>{item.name}</Text>
+                                        <Text size="xs" c="dimmed">{new Date(item.timestamp).toLocaleString()}</Text>
+                                    </Stack>
+                                    <ActionIcon color="red" variant="subtle" onClick={(e) => {
+                                        e.stopPropagation();
+                                        const key = 'asn_memory_json';
+                                        const saved = JSON.parse(localStorage.getItem(key) || '[]');
+                                        const filtered = saved.filter((s: any) => s.name !== item.name);
+                                        localStorage.setItem(key, JSON.stringify(filtered));
+                                        setLoadJsonModalOpen(false);
+                                        setTimeout(() => setLoadJsonModalOpen(true), 0);
+                                    }}>
+                                        <IconTrash size="1rem"/>
+                                    </ActionIcon>
+                                </Group>
+                            ))}
+                        </Stack>
+                    </ScrollArea>
+                )}
+                <Group justify="flex-end" mt="md">
+                    <Button onClick={() => setLoadJsonModalOpen(false)}>Close</Button>
                 </Group>
             </Stack>
         </Modal>
