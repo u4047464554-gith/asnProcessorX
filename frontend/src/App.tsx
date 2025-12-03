@@ -201,15 +201,16 @@ function App() {
       <AppShell.Header>
         {currentThemeName.includes('Star Trek') && <StarTrekShip />}
         <Stack gap={0} style={{ position: 'relative', zIndex: 1 }}>
-          <Group h="100%" px="md" justify="space-between">
-            <Title order={3}>ASN.1 Processor</Title>
-            <Group>
+          <Group h="100%" px="md" justify="space-between" wrap="nowrap">
+            <Title order={3} style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>ASN.1 Processor</Title>
+            <Group gap="xs" wrap="nowrap">
               <Button
                   variant="outline"
                   size="xs"
                   disabled={!selectedProtocol}
                   onClick={() => setSchemaEditorOpen(true)}
                   aria-label="Edit Schema"
+                  style={{ whiteSpace: 'nowrap' }}
               >
                   Edit Schema
               </Button>
@@ -219,6 +220,7 @@ function App() {
                   disabled={!selectedProtocol}
                   onClick={() => setCodegenModalOpen(true)}
                   aria-label="Generate C Stubs"
+                  style={{ whiteSpace: 'nowrap' }}
               >
                   Generate C Stubs
               </Button>
@@ -226,29 +228,30 @@ function App() {
                   variant={inspectorOpen ? "filled" : "outline"}
                   size="xs"
                   onClick={() => setInspectorOpen(!inspectorOpen)}
-                  leftSection={<IconLayoutSidebarRight size="1rem" />}
+                  leftSection={<IconLayoutSidebarRight size="0.875rem" />}
                   aria-label="Toggle Inspector"
+                  style={{ whiteSpace: 'nowrap' }}
               >
                   Inspector
               </Button>
-              <Button
+              <ActionIcon
                   variant="outline"
-                  size="xs"
+                  size="md"
                   onClick={() => setSettingsOpen(true)}
-                  leftSection={<IconSettings size="1rem" />}
                   aria-label="Settings"
+                  title="Settings"
               >
-                  Settings
-              </Button>
-              <Button
+                  <IconSettings size="1rem" />
+              </ActionIcon>
+              <ActionIcon
                   variant="outline"
-                  size="xs"
+                  size="md"
                   onClick={() => setMemoryModalOpen(true)}
-                  leftSection={<IconDatabase size="1rem" />}
                   aria-label="Memory"
+                  title="Memory"
               >
-                  Memory
-              </Button>
+                  <IconDatabase size="1rem" />
+              </ActionIcon>
             </Group>
           </Group>
           <Divider />
@@ -256,7 +259,7 @@ function App() {
       </AppShell.Header>
 
       <AppShell.Main>
-        <Group mb="md" align="flex-end">
+        <Group mb="md" align="flex-end" wrap="wrap">
             <Select 
               label="Protocol" 
               placeholder="Select Protocol" 
@@ -264,6 +267,7 @@ function App() {
               value={selectedProtocol}
               onChange={handleProtocolChange}
               searchable
+              style={{ minWidth: 150, flex: '0 1 auto' }}
             />
             <Select
               label="Message" 
@@ -273,26 +277,12 @@ function App() {
               onChange={handleDemoSelect}
               searchable
               disabled={!selectedProtocol && demoTypeOptions.length === 0}
-              style={{ flex: 1 }}
+              style={{ minWidth: 200, flex: '1 1 auto' }}
             />
-             <Button variant="light" onClick={loadExample} disabled={!selectedDemoOption} aria-label="Reload">
+             <Button variant="light" onClick={loadExample} disabled={!selectedDemoOption} aria-label="Reload" style={{ whiteSpace: 'nowrap' }}>
                Reload
              </Button>
         </Group>
-
-        {definitionTree && (
-            <Paper withBorder p="sm" mb="md">
-              <Group justify="space-between" align="center" mb="xs">
-                <Text size="sm" fw={500}>Definition Tree</Text>
-                <Button size="xs" variant="subtle" onClick={() => setDefinitionOpen((prev) => !prev)} aria-label="Toggle definition tree">
-                  {definitionOpen ? 'Hide' : 'Show'}
-                </Button>
-              </Group>
-              <Collapse in={definitionOpen}>
-                <DefinitionTree root={definitionTree} />
-              </Collapse>
-            </Paper>
-        )}
 
         {error && (
              <Paper withBorder p="sm" mb="sm" bg="red.0">
@@ -535,6 +525,20 @@ function App() {
                 </Grid.Col>
             )}
         </Grid>
+
+        {definitionTree && (
+            <Paper withBorder p="sm" mt="md" mb="md">
+              <Group justify="space-between" align="center" mb="xs">
+                <Text size="sm" fw={500}>Definition Tree</Text>
+                <Button size="xs" variant="subtle" onClick={() => setDefinitionOpen((prev) => !prev)} aria-label="Toggle definition tree">
+                  {definitionOpen ? 'Hide' : 'Show'}
+                </Button>
+              </Group>
+              <Collapse in={definitionOpen}>
+                <DefinitionTree root={definitionTree} />
+              </Collapse>
+            </Paper>
+        )}
 
         <ScratchpadPanel />
 

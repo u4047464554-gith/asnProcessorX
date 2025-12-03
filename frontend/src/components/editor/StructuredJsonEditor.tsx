@@ -182,36 +182,53 @@ function NodeRenderer({ node, value, onChange, level, path, label, isOptionalGho
             onChange(newObj);
         };
 
+        const isEmpty = children.length === 0;
+        const handleToggle = (e: React.MouseEvent) => {
+            e.stopPropagation();
+            setExpanded(!expanded);
+        };
+
         return (
             <Box ml={level * 16}>
-                <Group mb={4} onClick={() => setExpanded(!expanded)} style={{ cursor: 'pointer' }}>
-                    <ThemeIcon variant="transparent" size="xs" c="dimmed">
+                <Group 
+                    mb={4} 
+                    onClick={handleToggle} 
+                    style={{ cursor: 'pointer', userSelect: 'none' }}
+                    gap="xs"
+                >
+                    <ThemeIcon variant="transparent" size="xs" c="dimmed" style={{ pointerEvents: 'none' }}>
                         {expanded ? <IconChevronDown /> : <IconChevronRight />}
                     </ThemeIcon>
-                    <Text fw={500} size="sm">{fieldName}</Text>
-                    {node.type !== 'SEQUENCE' && <Text size="xs" c="dimmed">({node.type})</Text>}
+                    <Text fw={500} size="sm" style={{ pointerEvents: 'none' }}>{fieldName}</Text>
+                    {node.type !== 'SEQUENCE' && <Text size="xs" c="dimmed" style={{ pointerEvents: 'none' }}>({node.type})</Text>}
                 </Group>
                 
                 <Collapse in={expanded}>
-                    <Stack gap={2} style={{ borderLeft: '1px solid var(--mantine-color-default-border)', marginLeft: 7 }}>
-                        {children.map((child, idx) => {
-                            const childKey = child.name || `child-${idx}`;
-                            const childData = objValue[childKey];
-                            const isGhost = child.optional && childData === undefined;
+                    {isEmpty ? (
+                        <Box ml={8} py={4} style={{ borderLeft: '1px solid var(--mantine-color-default-border)', marginLeft: 7 }}>
+                            <Text size="xs" c="dimmed" style={{ fontStyle: 'italic' }}>Empty sequence</Text>
+                        </Box>
+                    ) : (
+                        <Stack gap={2} style={{ borderLeft: '1px solid var(--mantine-color-default-border)', marginLeft: 7 }}>
+                            {children.map((child, idx) => {
+                                const childKey = child.name || `child-${idx}`;
+                                const childData = objValue[childKey];
+                                const isGhost = child.optional && childData === undefined;
 
-                            return (
-                                <NodeRenderer
-                                    key={childKey}
-                                    node={child}
-                                    value={childData}
-                                    onChange={(v) => handleChildChange(childKey, v)}
-                                    level={1} // Relative indentation handled by border/padding
-                                    path={`${path}.${childKey}`}
-                                    isOptionalGhost={isGhost}
-                                />
-                            );
-                        })}
-                    </Stack>
+                                return (
+                                    <NodeRenderer
+                                        key={childKey}
+                                        node={child}
+                                        value={childData}
+                                        onChange={(v) => handleChildChange(childKey, v)}
+                                        level={1} // Relative indentation handled by border/padding
+                                        path={`${path}.${childKey}`}
+                                        isOptionalGhost={isGhost}
+                                    />
+                                );
+                            })}
+                        </Stack>
+                    )}
                 </Collapse>
             </Box>
         );
@@ -291,8 +308,8 @@ function NodeRenderer({ node, value, onChange, level, path, label, isOptionalGho
         // asn1tools usually outputs { "choiceName": value } for JSON.
         // Let's assume { key: value } with exactly one key.
         
-        const currentKey = value && typeof value === 'object' ? Object.keys(value)[0] : null;
-        const currentData = currentKey ? value[currentKey] : null;
+        const currentKey = value && typeof value === 'object' && !Array.isArray(value) ? Object.keys(value)[0] : null;
+        const currentData = currentKey && value ? value[currentKey] : null;
         
         // Find the active child node
         const activeChild = options.find(c => c.name === currentKey);
@@ -312,15 +329,16 @@ function NodeRenderer({ node, value, onChange, level, path, label, isOptionalGho
 
         return (
             <Box ml={level * 16}>
-                <Group mb={4}>
+                <Group mb={4} gap="xs">
                     <Text fw={500} size="sm">{fieldName}</Text>
                     <Select 
                         size="xs" 
-                        data={options.map(c => c.name || '')}
-                        value={currentKey}
+                        data={options.map(c => ({ value: c.name || '', label: c.name || '' }))}
+                        value={currentKey || ''}
                         onChange={(v) => v && handleChoiceChange(v)}
                         placeholder="Select choice"
                         style={{ width: 200 }}
+                        clearable={false}
                     />
                 </Group>
                 {activeChild && (
