@@ -143,6 +143,91 @@ async def get_type_definition(protocol: str, type_name: str):
     }
 
 
+def generate_default_value(type_tree: dict) -> Any:
+    """Generate a default/skeleton value from a type tree."""
+    if not type_tree:
+        return None
+    
+    # build_type_tree returns "kind" and "children", not "type" and "members"
+    type_kind = type_tree.get("kind", type_tree.get("type", ""))
+    members = type_tree.get("children", type_tree.get("members", []))
+    
+    if type_kind == "Sequence":
+        result = {}
+        for member in members:
+            member_name = member.get("name", "")
+            if member_name and not member.get("optional", False):
+                result[member_name] = generate_default_value(member)
+        return result
+    
+    elif type_kind == "Choice":
+        # Return first non-optional choice
+        if members:
+            first_member = members[0]
+            choice_name = first_member.get("name", "choice")
+            choice_value = generate_default_value(first_member)
+            return {choice_name: choice_value}
+        return {"unknown": None}
+    
+    elif type_kind in ("SequenceOf", "SetOf"):
+        return []
+    
+    elif type_kind == "Enumerated":
+        # Return first enum value
+        if members and isinstance(members[0], dict):
+            return members[0].get("name", "")
+        elif members:
+            return members[0]
+        return ""
+    
+    elif type_kind == "Integer":
+        return 0
+    
+    elif type_kind == "Boolean":
+        return False
+    
+    elif type_kind in ("OctetString", "BitString"):
+        return b""
+    
+    elif type_kind in ("Utf8String", "IA5String", "PrintableString", "VisibleString"):
+        return ""
+    
+    elif type_kind == "Null":
+        return None
+    
+    # For referenced types, try to recurse through children
+    if members:
+        # If there's a single child element, recurse into it
+        if len(members) == 1:
+            return generate_default_value(members[0])
+    
+    return None
+
+
+@router.get("/protocols/{protocol}/types/{type_name}/example")
+async def get_type_example(protocol: str, type_name: str):
+    """Generate a default/skeleton example for a type."""
+    compiler = manager.get_compiler(protocol)
+    if not compiler:
+        raise HTTPException(status_code=404, detail=f"Protocol '{protocol}' not found")
+    
+    type_obj = compiler.types.get(type_name)
+    if not type_obj:
+        raise HTTPException(status_code=404, detail=f"Type '{type_name}' not found")
+    
+    # Build type tree and generate default
+    tree = build_type_tree(type_obj)
+    default_data = generate_default_value(tree)
+    
+    serialized_data = serialize_asn1_data(default_data) if default_data else {}
+    
+    return {
+        "type_name": type_name,
+        "example": serialized_data,  # Frontend expects "example" field
+        "data": serialized_data  # Also include "data" for backward compatibility
+    }
+
+
 @router.post("/debug/normalize")
 async def debug_normalize(payload: Dict[str, Any]):
     """Temporary endpoint to inspect how payloads are normalized."""

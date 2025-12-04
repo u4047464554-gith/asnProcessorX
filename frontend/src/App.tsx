@@ -21,7 +21,8 @@ import {
   ActionIcon,
   Divider
 } from '@mantine/core'
-import { IconSettings, IconLayoutSidebarRight, IconTrash, IconDeviceFloppy, IconDatabase, IconCopy, IconFolderOpen } from '@tabler/icons-react'
+import { IconSettings, IconLayoutSidebarRight, IconTrash, IconDeviceFloppy, IconDatabase, IconCopy, IconFolderOpen, IconTimeline } from '@tabler/icons-react'
+import { Link, Routes, Route } from 'react-router-dom'
 import { BitInspectorPanel } from './components/trace/BitInspectorPanel'
 import { DefinitionTree } from './components/definition/DefinitionTree'
 import { SettingsModal } from './components/SettingsModal'
@@ -32,8 +33,9 @@ import { StructuredJsonEditor } from './components/editor/StructuredJsonEditor'
 import { useAsnProcessor } from './hooks/useAsnProcessor'
 import { hexTo0xHex, xHexToHex, safeParse } from './utils/conversion'
 import { ScratchpadPanel } from './components/ScratchpadPanel'
+import { MscEditor } from './pages/MscEditor'
 
-function App() {
+function AsnProcessor() {
   // Business Logic & State
   const {
       protocols, selectedProtocol, handleProtocolChange,
@@ -204,6 +206,11 @@ function App() {
           <Group h="100%" px="md" justify="space-between" wrap="nowrap">
             <Title order={3} style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>ASN.1 Processor</Title>
             <Group gap="xs" wrap="nowrap">
+              <Link to="/msc" style={{ textDecoration: 'none' }}>
+                <Button variant="outline" size="xs" leftSection={<IconTimeline size="0.875rem" />}>
+                  MSC Editor
+                </Button>
+              </Link>
               <Button
                   variant="outline"
                   size="xs"
@@ -786,6 +793,16 @@ function App() {
       </AppShell.Main>
     </AppShell>
     </MantineProvider>
+  )
+}
+
+function App() {
+  return (
+    <Routes>
+      <Route path="/msc" element={<MscEditor />} />
+      <Route path="/" element={<AsnProcessor />} />
+      <Route path="*" element={<AsnProcessor />} />
+    </Routes>
   )
 }
 

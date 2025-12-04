@@ -28,6 +28,10 @@
     </style>
     <script>
       window.onerror = function(msg, url, lineNo, columnNo, error) {
+        // Ignore benign ResizeObserver errors
+        if (msg && msg.toString().includes('ResizeObserver')) {
+          return true; // Suppress the error
+        }
         var overlay = document.getElementById('global-error-overlay');
         var content = document.getElementById('global-error-content');
         if (overlay && content) {
@@ -39,6 +43,10 @@
         return false;
       };
       window.onunhandledrejection = function(event) {
+        // Ignore benign ResizeObserver errors
+        if (event.reason && event.reason.toString().includes('ResizeObserver')) {
+          return;
+        }
         var overlay = document.getElementById('global-error-overlay');
         var content = document.getElementById('global-error-content');
         if (overlay && content) {

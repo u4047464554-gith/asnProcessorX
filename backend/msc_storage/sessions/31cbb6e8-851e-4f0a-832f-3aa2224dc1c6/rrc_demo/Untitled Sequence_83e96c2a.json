@@ -1,0 +1,65 @@
+{
+  "id": "83e96c2a-43f6-4a6b-a7fa-5576cd20d5f5",
+  "name": "Untitled Sequence",
+  "protocol": "rrc_demo",
+  "messages": [
+    {
+      "id": "34c96605-48df-40bc-9327-88c94045acdc",
+      "type_name": "RRCConnectionRequest",
+      "data": {},
+      "source_actor": "UE",
+      "target_actor": "gNB",
+      "timestamp": 1764839720.111315,
+      "validation_errors": []
+    }
+  ],
+  "sub_sequences": [],
+  "tracked_identifiers": {},
+  "validation_results": [
+    {
+      "type": "error",
+      "message": "RRCConnectionRequest requires ue-Identity field",
+      "field": "ue-Identity",
+      "message_index": null,
+      "code": "MISSING_REQUIRED_FIELD"
+    },
+    {
+      "type": "error",
+      "message": "RRCConnectionRequest requires establishmentCause field",
+      "field": "establishmentCause",
+      "message_index": null,
+      "code": "MISSING_REQUIRED_FIELD"
+    },
+    {
+      "type": "warning",
+      "message": "Missing expected identifier 'ue-Identity' in RRCConnectionRequest",
+      "field": "ue-Identity",
+      "message_index": 0,
+      "code": "MISSING_IDENTIFIER"
+    },
+    {
+      "type": "warning",
+      "message": "Missing expected identifier 'establishmentCause' in RRCConnectionRequest",
+      "field": "establishmentCause",
+      "message_index": 0,
+      "code": "MISSING_IDENTIFIER"
+    },
+    {
+      "type": "warning",
+      "message": "Sequence appears unbalanced - RRC communication should alternate between UE and gNB",
+      "field": null,
+      "message_index": null,
+      "code": "UNBALANCED_COMMUNICATION"
+    },
+    {
+      "type": "error",
+      "message": "Invalid state transition from RRCState.CONNECTING with message RRCConnectionRequest",
+      "field": null,
+      "message_index": 0,
+      "code": "INVALID_TRANSITION"
+    }
+  ],
+  "created_at": "2025-12-04T11:14:54.655938",
+  "updated_at": "2025-12-04T11:15:20.111319",
+  "session_id": "31cbb6e8-851e-4f0a-832f-3aa2224dc1c6"
+}

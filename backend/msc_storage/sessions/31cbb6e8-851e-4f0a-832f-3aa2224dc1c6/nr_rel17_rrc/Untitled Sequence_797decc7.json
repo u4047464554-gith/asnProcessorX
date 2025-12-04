@@ -1,0 +1,58 @@
+{
+  "id": "797decc7-2db9-4159-a283-ddb5b17b5bf5",
+  "name": "Untitled Sequence",
+  "protocol": "nr_rel17_rrc",
+  "messages": [
+    {
+      "id": "79afa458-8051-4ede-886a-e7bb399dd391",
+      "type_name": "RRCReconfiguration",
+      "data": {},
+      "source_actor": "UE",
+      "target_actor": "gNB",
+      "timestamp": 1764846899.65098,
+      "validation_errors": []
+    }
+  ],
+  "sub_sequences": [],
+  "tracked_identifiers": {},
+  "validation_results": [
+    {
+      "type": "warning",
+      "message": "RRCReconfiguration typically sent from {'gNB'}, but received from UE",
+      "field": "source_actor",
+      "message_index": null,
+      "code": "UNEXPECTED_SOURCE"
+    },
+    {
+      "type": "warning",
+      "message": "Missing expected identifier 'rrc-TransactionIdentifier' in RRCReconfiguration",
+      "field": "rrc-TransactionIdentifier",
+      "message_index": 0,
+      "code": "MISSING_IDENTIFIER"
+    },
+    {
+      "type": "warning",
+      "message": "Sequence appears unbalanced - RRC communication should alternate between UE and gNB",
+      "field": null,
+      "message_index": null,
+      "code": "UNBALANCED_COMMUNICATION"
+    },
+    {
+      "type": "warning",
+      "message": "RRC sequence should typically start with connection establishment (RRCConnectionRequest or similar)",
+      "field": null,
+      "message_index": null,
+      "code": "MISSING_CONNECTION_START"
+    },
+    {
+      "type": "error",
+      "message": "Invalid state transition from RRCState.RECONFIGURING with message RRCReconfiguration",
+      "field": null,
+      "message_index": 0,
+      "code": "INVALID_TRANSITION"
+    }
+  ],
+  "created_at": "2025-12-04T13:14:54.277369",
+  "updated_at": "2025-12-04T13:14:59.650983",
+  "session_id": "31cbb6e8-851e-4f0a-832f-3aa2224dc1c6"
+}

@@ -1,0 +1,44 @@
+{
+  "id": "6f1a4c11-4d34-4690-9353-4173c4ab7cd4",
+  "name": "Untitled Sequence",
+  "protocol": "nr_rel17_rrc",
+  "messages": [
+    {
+      "id": "bcdc31b5-9a40-4f8f-aa96-8e3628927ab9",
+      "type_name": "AccessStratumRelease",
+      "data": {},
+      "source_actor": "UE",
+      "target_actor": "gNB",
+      "timestamp": 1764849205.327488,
+      "validation_errors": []
+    }
+  ],
+  "sub_sequences": [],
+  "tracked_identifiers": {},
+  "validation_results": [
+    {
+      "type": "warning",
+      "message": "Sequence appears unbalanced - RRC communication should alternate between UE and gNB",
+      "field": null,
+      "message_index": null,
+      "code": "UNBALANCED_COMMUNICATION"
+    },
+    {
+      "type": "warning",
+      "message": "RRC sequence should typically start with connection establishment (RRCConnectionRequest or similar)",
+      "field": null,
+      "message_index": null,
+      "code": "MISSING_CONNECTION_START"
+    },
+    {
+      "type": "error",
+      "message": "Invalid state transition from CONNECTED with message AccessStratumRelease",
+      "field": null,
+      "message_index": 0,
+      "code": "INVALID_TRANSITION"
+    }
+  ],
+  "created_at": "2025-12-04T13:53:10.162044",
+  "updated_at": "2025-12-04T13:53:25.327493",
+  "session_id": "31cbb6e8-851e-4f0a-832f-3aa2224dc1c6"
+}

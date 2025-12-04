@@ -4,6 +4,9 @@ from contextlib import asynccontextmanager
 from backend.routers import asn, config, files, messages
 from backend.core.manager import manager
 
+# New import for MSC router
+from backend.routers.msc import router as msc_router
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Load protocols on startup
@@ -11,7 +14,7 @@ async def lifespan(app: FastAPI):
     yield
     # Clean up if needed
 
-app = FastAPI(title="ASN.1 Stream Processor", lifespan=lifespan)
+app = FastAPI(title="ASN.1 Processor API", version="0.3.0")
 
 # Allow CORS for Frontend
 app.add_middleware(
@@ -22,11 +25,23 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(asn.router, prefix="/api/asn", tags=["asn"])
-app.include_router(config.router, prefix="/api/config", tags=["config"])
-app.include_router(files.router, prefix="/api/files", tags=["files"])
-app.include_router(messages.router, prefix="/api/messages", tags=["messages"])
+# Existing routers
+app.include_router(asn.router, prefix="/api/asn", tags=["ASN"])
+app.include_router(config.router, prefix="/api", tags=["Config"])
+app.include_router(files.router, prefix="/api", tags=["Files"])
+app.include_router(messages.router, prefix="/api/messages", tags=["Messages"])
+
+# New MSC router
+app.include_router(msc_router, prefix="/api", tags=["MSC"])
 
 @app.get("/health")
 async def health_check():
-    return {"status": "ok", "version": "0.3.0"}
+    return {
+        "status": "ok",
+        "version": "0.3.0",
+        "protocols_loaded": len(manager.list_protocols())
+    }
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)

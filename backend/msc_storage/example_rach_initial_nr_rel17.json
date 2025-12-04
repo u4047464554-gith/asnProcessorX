@@ -1,0 +1,118 @@
+{
+  "id": "example-rach-initial-nr-rel17",
+  "name": "RACH Initial Procedure (Simplified)",
+  "protocol": "nr_rel17_rrc",
+  "messages": [
+    {
+      "id": "msg-rach-1",
+      "type_name": "RRCConnectionRequest",
+      "data": {
+        "rrcConnectionRequest": {
+          "establishmentCause": "mo-Signalling",
+          "spare": "000"
+        },
+        "initialUE-Identity": {
+          "randomValue": "0000000000000000"
+        }
+      },
+      "source_actor": "UE",
+      "target_actor": "gNB",
+      "timestamp": 1000.0,
+      "validation_errors": []
+    },
+    {
+      "id": "msg-rach-2",
+      "type_name": "RRCConnectionSetup",
+      "data": {
+        "rrcConnectionSetup": {
+          "rrc-TransactionIdentifier": 0,
+          "criticalExtensions": {
+            "rrcConnectionSetup": {
+              "radioBearerConfig": {},
+              "secondaryCellGroup": {}
+            }
+          }
+        }
+      },
+      "source_actor": "gNB",
+      "target_actor": "UE",
+      "timestamp": 1001.0,
+      "validation_errors": []
+    },
+    {
+      "id": "msg-rach-3",
+      "type_name": "RRCConnectionSetupComplete",
+      "data": {
+        "rrcConnectionSetupComplete": {
+          "rrc-TransactionIdentifier": 0,
+          "selectedPLMN-Identity": 1,
+          "registeredAMF": {
+            "plmn-Identity": {
+              "mcc": [2, 4, 0],
+              "mnc": [0, 1]
+            },
+            "amf-Identifier": {
+              "amf-RegionID": {
+                "value": 0
+              },
+              "amf-SetID": {
+                "value": 0
+              },
+              "amf-Pointer": {
+                "value": 0
+              }
+            }
+          },
+          "guami-Type": "native"
+        }
+      },
+      "source_actor": "UE",
+      "target_actor": "gNB",
+      "timestamp": 1002.0,
+      "validation_errors": []
+    }
+  ],
+  "sub_sequences": [],
+  "tracked_identifiers": {
+    "initialUE-Identity.randomValue": {
+      "name": "initialUE-Identity.randomValue",
+      "values": {
+        "0": "0000000000000000"
+      },
+      "conflicts": []
+    },
+    "rrc-TransactionIdentifier": {
+      "name": "rrc-TransactionIdentifier",
+      "values": {
+        "1": 0,
+        "2": 0
+      },
+      "conflicts": []
+    },
+    "establishmentCause": {
+      "name": "establishmentCause",
+      "values": {
+        "0": "mo-Signalling"
+      },
+      "conflicts": []
+    },
+    "rrcConnectionSetup.rrc-TransactionIdentifier": {
+      "name": "rrcConnectionSetup.rrc-TransactionIdentifier",
+      "values": {
+        "1": 0
+      },
+      "conflicts": []
+    },
+    "rrcConnectionSetupComplete.rrc-TransactionIdentifier": {
+      "name": "rrcConnectionSetupComplete.rrc-TransactionIdentifier",
+      "values": {
+        "2": 0
+      },
+      "conflicts": []
+    }
+  },
+  "validation_results": [],
+  "created_at": "2025-01-04T00:00:00.000000",
+  "updated_at": "2025-01-04T00:00:00.000000"
+}
+
