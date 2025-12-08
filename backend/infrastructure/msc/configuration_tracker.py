@@ -1,4 +1,4 @@
-from typing import List, Dict, Any, Tuple, Optional
+from typing import List, Dict, Any, Optional
 from backend.domain.msc.interfaces import IConfigurationTracker
 from backend.domain.msc.entities import TrackedIdentifier
 from datetime import datetime

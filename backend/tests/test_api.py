@@ -1,4 +1,3 @@
-from backend.main import app
 import sys
 import os
 

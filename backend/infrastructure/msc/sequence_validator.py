@@ -284,7 +284,7 @@ class SequenceValidator(ISequenceValidator):
                 value = message.data[identifier_name]
                 
                 # Track the value
-                tracked = self.config_tracker.track_value(identifier_name, message_index, value)
+                _tracked = self.config_tracker.track_value(identifier_name, message_index, value)
                 
                 # Check for conflicts with previous values
                 conflicts = self.config_tracker.detect_conflicts(identifier_name)

@@ -7,7 +7,6 @@ import mimetypes
 import logging
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse
-from fastapi import Request
 
 # Add the current directory to sys.path to ensure we can import 'backend' if we are running from root
 # But in PyInstaller, sys.path is handled differently.
@@ -111,7 +110,7 @@ def main():
         
         logger.info("Starting Uvicorn...")
         uvicorn.run(app, host="127.0.0.1", port=port, log_level="info")
-    except Exception as e:
+    except Exception:
         logger.exception("Critical error in main")
         sys.exit(1)
 

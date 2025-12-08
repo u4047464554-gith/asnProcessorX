@@ -3,7 +3,6 @@ from typing import List
 from backend.domain.msc.interfaces import IIdentifierDetector
 from backend.core.manager import manager
 from backend.core.type_tree import build_type_tree
-from backend.core.asn1_runtime import asn1tools
 
 class RrcIdentifierDetector(IIdentifierDetector):
     """Concrete implementation of identifier detector for RRC protocols."""

@@ -4,11 +4,9 @@ Tests the complete MSC workflow through the API layer.
 """
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import patch, MagicMock
-import json
+from unittest.mock import patch
 
 from backend.main import app
-from backend.domain.msc.entities import MscSequence, MscMessage
 
 
 @pytest.fixture

@@ -2,7 +2,6 @@ import os
 import json
 from datetime import datetime, timedelta
 from typing import List, Optional, Dict, Any
-from uuid import UUID
 
 from backend.domain.msc.interfaces import IMscRepository
 from backend.domain.msc.entities import MscSequence, MscMessage, ValidationResult, ValidationType, TrackedIdentifier, MscSession
@@ -828,7 +827,7 @@ class MscRepository(IMscRepository):
                                             is_active=data.get('is_active', True)
                                         )
                                         sessions.append(session)
-                                except (json.JSONDecodeError, KeyError, ValueError) as e:
+                                except (json.JSONDecodeError, KeyError, ValueError):
                                     continue
         
         # Sort by updated_at descending

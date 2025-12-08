@@ -6,8 +6,7 @@ from backend.domain.msc.entities import (
     MscSequence, 
     MscMessage, 
     ValidationResult, 
-    ValidationType,
-    TrackedIdentifier
+    ValidationType
 )
 from backend.domain.msc.interfaces import (
     IIdentifierDetector, 

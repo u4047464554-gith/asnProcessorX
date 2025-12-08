@@ -1,5 +1,3 @@
-import pytest
-from backend.main import app
 
 def test_rrc_encoding_mismatch_repro(client):
     # Reproduction of the user's issue:

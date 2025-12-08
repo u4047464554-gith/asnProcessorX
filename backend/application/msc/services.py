@@ -9,13 +9,6 @@ from backend.domain.msc.entities import (
     ValidationType,
     MscSession
 )
-from backend.domain.msc.interfaces import (
-    IMscRepository,
-    IIdentifierDetector,
-    IConfigurationTracker,
-    ISequenceValidator,
-    IStateMachine
-)
 from .use_cases import MscUseCaseFactory
 
 class SequenceDTO:

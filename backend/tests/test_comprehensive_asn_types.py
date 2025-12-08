@@ -5,7 +5,7 @@ Tests cover primitives, constructed types, constraints, and edge cases.
 import pytest
 import asn1tools
 from backend.core.converter import convert_to_python_asn1
-from backend.core.serialization import serialize_asn1_data, deserialize_asn1_data
+from backend.core.serialization import serialize_asn1_data
 
 
 COMPREHENSIVE_ASN_SPEC = """

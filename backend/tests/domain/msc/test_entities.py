@@ -1,6 +1,4 @@
-import pytest
 from datetime import datetime
-from uuid import uuid4
 from backend.domain.msc.entities import (
     MscSequence, 
     MscMessage, 

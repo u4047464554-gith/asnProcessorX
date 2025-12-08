@@ -2,7 +2,6 @@ import os
 import sys
 from typing import Any, Dict
 
-from backend.main import app
 
 sys.path.append(os.getcwd())
 

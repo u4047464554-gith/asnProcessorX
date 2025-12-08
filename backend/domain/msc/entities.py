@@ -1,9 +1,8 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from typing import List, Dict, Optional, Any
 from enum import Enum
-from uuid import UUID, uuid4
-import uuid
+from uuid import uuid4
 
 class ValidationType(Enum):
     ERROR = "error"

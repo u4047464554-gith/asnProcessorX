@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo } from 'react';
 import { Paper, Text, Group, Badge, ActionIcon, Tooltip } from '@mantine/core';
 import {
   IconCircleDot,
@@ -35,7 +35,7 @@ export const MscDiagram: React.FC<MscDiagramProps> = ({
   collapsible = true
 }) => {
 
-  const [diagramWidth, setDiagramWidth] = useState(800);
+
 
   // Actor positions
   const actors = useMemo(() => {
@@ -61,12 +61,13 @@ export const MscDiagram: React.FC<MscDiagramProps> = ({
   }, [actors]);
 
   // Calculate diagram dimensions
-  useEffect(() => {
-    if (sequence && actors.length > 0) {
-      const maxX = Math.max(...Object.values(actorPositions));
-      setDiagramWidth(maxX + DIAGRAM_MARGIN + 100); // Extra space for labels
-    }
-  }, [actorPositions, sequence, actors.length]);
+  const diagramWidth = useMemo(() => {
+    if (!sequence || actors.length === 0) return 800;
+    const maxX = Math.max(...Object.values(actorPositions));
+    return maxX + DIAGRAM_MARGIN + 100;
+  }, [sequence, actors, actorPositions]);
+
+
 
 
   if (!sequence) {

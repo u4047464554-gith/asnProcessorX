@@ -78,7 +78,7 @@ def test_api():
             "content": test_content
         })
         assert res.status_code == 200, f"Expected 200, got {res.status_code}"
-        print(f"   ✓ Saved scratchpad")
+        print("   ✓ Saved scratchpad")
     except Exception as e:
         errors.append(f"Save scratchpad: {e}")
         print(f"   ✗ FAILED: {e}")
@@ -89,7 +89,7 @@ def test_api():
         res = requests.get(f"{BASE_URL}/api/sessions/{new_session_id}/scratchpad")
         assert res.status_code == 200, f"Expected 200, got {res.status_code}"
         data = res.json()
-        assert data['content'] == test_content, f"Content mismatch"
+        assert data['content'] == test_content, "Content mismatch"
         print(f"   ✓ Loaded scratchpad: {len(data['content'])} chars")
     except Exception as e:
         errors.append(f"Load scratchpad: {e}")
@@ -105,7 +105,7 @@ def test_api():
             "data": {"test": "data", "value": 123}
         })
         assert res.status_code == 200, f"Expected 200, got {res.status_code}"
-        print(f"   ✓ Saved message")
+        print("   ✓ Saved message")
     except Exception as e:
         errors.append(f"Save message: {e}")
         print(f"   ✗ FAILED: {e}")
@@ -141,13 +141,13 @@ def test_api():
     try:
         res = requests.delete(f"{BASE_URL}/api/sessions/{new_session_id}/messages/test_message.json")
         assert res.status_code == 200, f"Expected 200, got {res.status_code}"
-        print(f"   ✓ Deleted message")
+        print("   ✓ Deleted message")
         
         # Verify deletion
         res = requests.get(f"{BASE_URL}/api/sessions/{new_session_id}/messages")
         messages = res.json()
         assert "test_message.json" not in messages
-        print(f"   ✓ Verified deletion")
+        print("   ✓ Verified deletion")
     except Exception as e:
         errors.append(f"Delete message: {e}")
         print(f"   ✗ FAILED: {e}")
@@ -157,12 +157,12 @@ def test_api():
     try:
         res = requests.delete(f"{BASE_URL}/api/sessions/{new_session_id}")
         assert res.status_code == 200, f"Expected 200, got {res.status_code}"
-        print(f"   ✓ Deleted session")
+        print("   ✓ Deleted session")
         
         # Verify deletion
         res = requests.get(f"{BASE_URL}/api/sessions/{new_session_id}")
         assert res.status_code == 404, "Session should be deleted"
-        print(f"   ✓ Verified deletion (404)")
+        print("   ✓ Verified deletion (404)")
     except Exception as e:
         errors.append(f"Delete session: {e}")
         print(f"   ✗ FAILED: {e}")
@@ -175,9 +175,9 @@ def test_api():
         if len(sessions) == 1:
             res = requests.delete(f"{BASE_URL}/api/sessions/{sessions[0]['id']}")
             assert res.status_code == 400, f"Expected 400, got {res.status_code}"
-            print(f"   ✓ Correctly prevented deletion of last session")
+            print("   ✓ Correctly prevented deletion of last session")
         else:
-            print(f"   ⊘ Skipped (more than one session exists)")
+            print("   ⊘ Skipped (more than one session exists)")
     except Exception as e:
         errors.append(f"Delete last session test: {e}")
         print(f"   ✗ FAILED: {e}")

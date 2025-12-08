@@ -1,17 +1,14 @@
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, Field, ConfigDict
-from typing import List, Optional, Dict, Any, Union
-from uuid import UUID
+from typing import List, Optional, Dict, Any
 
 from backend.application.msc.services import (
     MscApplicationService, 
     SequenceDTO, 
-    ValidationResponse, 
     IdentifierDetectionResponse
 )
-from backend.application.msc.use_cases import MscUseCaseFactory
 from backend.infrastructure.msc.dependencies import get_msc_service
-from backend.domain.msc.entities import ValidationType, MscSession
+from backend.domain.msc.entities import ValidationType
 
 router = APIRouter(
     prefix="/msc",
@@ -328,7 +325,6 @@ async def list_sequences(
         
         # Add example sequences if requested
         if include_examples:
-            import os
             import json
             from pathlib import Path
             from backend.domain.msc.entities import MscSequence, MscMessage, TrackedIdentifier

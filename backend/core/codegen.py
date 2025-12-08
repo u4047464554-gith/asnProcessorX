@@ -59,7 +59,7 @@ class CodegenService:
         if protocol not in self.manager.protocols:
             raise ValueError(f"Protocol '{protocol}' not found")
             
-        protocol_def = self.manager.protocols[protocol]
+        _protocol_def = self.manager.protocols[protocol]
         # AsnManager doesn't strictly store file paths in a simple list in the MVP, 
         # but we can reconstruct or access them if we modify AsnManager to expose them.
         # For now, assuming we can get the source files from the protocol definition 

@@ -1,7 +1,6 @@
 from fastapi import APIRouter
 from pydantic import BaseModel
 import os
-import json
 from backend.core.config import config_manager
 
 router = APIRouter()

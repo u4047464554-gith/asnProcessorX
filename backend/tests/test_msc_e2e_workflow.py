@@ -8,7 +8,6 @@ API Paths:
 """
 import pytest
 from fastapi.testclient import TestClient
-import json
 
 from backend.main import app
 

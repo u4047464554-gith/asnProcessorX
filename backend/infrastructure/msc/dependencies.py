@@ -1,4 +1,3 @@
-from typing import Optional
 from fastapi import Depends
 
 from backend.domain.msc.interfaces import (

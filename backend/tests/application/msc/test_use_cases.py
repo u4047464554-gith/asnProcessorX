@@ -1,6 +1,4 @@
-import pytest
 from unittest.mock import Mock, MagicMock
-from datetime import datetime
 
 from backend.domain.msc.entities import MscSequence, MscMessage, ValidationResult, ValidationType
 from backend.domain.msc.interfaces import (
