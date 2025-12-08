@@ -34,15 +34,8 @@ def get_rrc_state_machine() -> IStateMachine:
 
 def get_msc_repository() -> IMscRepository:
     """Dependency provider for MSC repository."""
-    # Get storage path from config
-    config = config_manager.get()
-    msc_storage_path = getattr(config, 'msc_storage_path', None)
-    if msc_storage_path is None:
-        # Default path
-        import os
-        base_dir = os.path.dirname(os.path.abspath(__file__))
-        msc_storage_path = os.path.join(base_dir, '..', '..', 'msc_storage')
-    
+    # Get storage path from config manager
+    msc_storage_path = config_manager.get_msc_storage_path()
     return MscRepository(storage_path=msc_storage_path)
 
 def get_msc_use_case_factory(

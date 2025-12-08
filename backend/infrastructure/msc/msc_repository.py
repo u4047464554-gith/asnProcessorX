@@ -13,11 +13,79 @@ class MscRepository(IMscRepository):
     def __init__(self, storage_path: str, user_id: Optional[str] = None):
         self.storage_path = storage_path
         self.user_id = user_id  # Optional user ID for user-based organization
+        self._index: Dict[str, str] = {}  # sequence_id -> file_path
         self._ensure_storage_directory()
+        self._load_index()
     
     def _ensure_storage_directory(self) -> None:
         """Create storage directory if it doesn't exist."""
         os.makedirs(self.storage_path, exist_ok=True)
+    
+    def _index_file_path(self) -> str:
+        """Get path to the index file."""
+        return os.path.join(self.storage_path, '_sequence_index.json')
+    
+    def _load_index(self) -> None:
+        """Load index from file, or rebuild if missing."""
+        index_path = self._index_file_path()
+        if os.path.exists(index_path):
+            try:
+                with open(index_path, 'r') as f:
+                    self._index = json.load(f)
+                # Validate that indexed files still exist
+                valid_index = {}
+                for seq_id, path in self._index.items():
+                    if os.path.exists(path):
+                        valid_index[seq_id] = path
+                self._index = valid_index
+                return
+            except:
+                pass
+        # Rebuild index by scanning
+        self._rebuild_index()
+    
+    def _save_index(self) -> None:
+        """Save index to file."""
+        index_path = self._index_file_path()
+        try:
+            with open(index_path, 'w') as f:
+                json.dump(self._index, f, indent=2)
+        except:
+            pass  # Non-critical
+    
+    def _rebuild_index(self) -> None:
+        """Rebuild index by scanning all directories."""
+        self._index = {}
+        self._scan_directory_for_index(self.storage_path)
+        self._save_index()
+    
+    def _scan_directory_for_index(self, dir_path: str) -> None:
+        """Recursively scan directory to build index."""
+        if not os.path.exists(dir_path):
+            return
+        for item in os.listdir(dir_path):
+            item_path = os.path.join(dir_path, item)
+            if os.path.isfile(item_path) and item.endswith('.json') and not item.startswith('_') and not item.startswith('example_'):
+                try:
+                    with open(item_path, 'r') as f:
+                        data = json.load(f)
+                    if 'id' in data and 'protocol' in data:  # It's a sequence file
+                        self._index[data['id']] = item_path
+                except:
+                    continue
+            elif os.path.isdir(item_path) and not item.startswith('.'):
+                self._scan_directory_for_index(item_path)
+    
+    def _update_index(self, sequence_id: str, file_path: str) -> None:
+        """Update index with a sequence path."""
+        self._index[sequence_id] = file_path
+        self._save_index()
+    
+    def _remove_from_index(self, sequence_id: str) -> None:
+        """Remove a sequence from the index."""
+        if sequence_id in self._index:
+            del self._index[sequence_id]
+            self._save_index()
     
     def _sanitize_filename(self, name: str) -> str:
         """Sanitize a name for use in filename."""
@@ -83,42 +151,32 @@ class MscRepository(IMscRepository):
         return os.path.join(base_path, filename)
     
     def _find_sequence_file(self, sequence_id: str) -> Optional[str]:
-        """Find sequence file by ID, searching all protocol subdirectories."""
-        # First try direct lookup in root
+        """Find sequence file by ID using the index."""
+        # Use index for O(1) lookup
+        if sequence_id in self._index:
+            path = self._index[sequence_id]
+            if os.path.exists(path):
+                return path
+            # Path in index but file doesn't exist - remove from index
+            self._remove_from_index(sequence_id)
+        
+        # Fallback: try direct lookup in root (for legacy files)
         direct_path = os.path.join(self.storage_path, f"{sequence_id}.json")
         if os.path.exists(direct_path):
+            self._update_index(sequence_id, direct_path)
             return direct_path
-        
-        # Search in protocol subdirectories
-        if os.path.exists(self.storage_path):
-            for item in os.listdir(self.storage_path):
-                item_path = os.path.join(self.storage_path, item)
-                if os.path.isdir(item_path):
-                    # Check if file exists in this protocol directory
-                    for filename in os.listdir(item_path):
-                        if filename.endswith('.json'):
-                            # Check if this file contains the sequence_id
-                            file_path = os.path.join(item_path, filename)
-                            try:
-                                with open(file_path, 'r') as f:
-                                    data = json.load(f)
-                                    if data.get('id') == sequence_id:
-                                        return file_path
-                            except:
-                                continue
-                            
-                            # Also check filename pattern: name_id.json
-                            if sequence_id in filename or filename.startswith(sequence_id[:8]):
-                                return file_path
         
         return None
     
     def _serialize_sequence(self, sequence: MscSequence) -> Dict[str, Any]:
         """Serialize MscSequence to JSON-compatible dictionary."""
+        from backend.version import __version__
+        
         result = {
             'id': sequence.id,
             'name': sequence.name,
             'protocol': sequence.protocol,
+            'app_version': __version__,  # Track which version created/modified this file
             'messages': [
                 {
                     'id': msg.id,
@@ -164,6 +222,14 @@ class MscRepository(IMscRepository):
     
     def _deserialize_sequence(self, data: Dict[str, Any]) -> MscSequence:
         """Deserialize JSON data to MscSequence."""
+        from backend.version import __version__
+        
+        # Track file version for compatibility/migration purposes
+        file_version = data.get('app_version')
+        if file_version:
+            if file_version != __version__:
+                print(f"Loading sequence created with version {file_version} (current: {__version__})", flush=True)
+        
         # Create messages from data
         messages = []
         for msg_data in data.get('messages', []):
@@ -194,7 +260,11 @@ class MscRepository(IMscRepository):
                 values=identifier_data['values']
             )
         
-        # Create sequence
+        # Create sequence with backward compatibility for missing timestamps
+        # Use current time as default if timestamps are missing
+        created_at = data.get('created_at')
+        updated_at = data.get('updated_at')
+        
         sequence = MscSequence(
             id=data['id'],
             name=data['name'],
@@ -212,25 +282,39 @@ class MscRepository(IMscRepository):
                     code=result_data.get('code')
                 ) for result_data in data.get('validation_results', [])
             ],
-            created_at=datetime.fromisoformat(data['created_at']),
-            updated_at=datetime.fromisoformat(data['updated_at'])
+            created_at=datetime.fromisoformat(created_at) if created_at else datetime.now(),
+            updated_at=datetime.fromisoformat(updated_at) if updated_at else datetime.now()
         )
         
         return sequence
     
     def create_sequence(self, sequence: MscSequence) -> MscSequence:
         """Create and persist a new sequence."""
-        sequence_file = self._sequence_file_path(sequence.id, sequence.name, sequence.protocol, sequence.session_id)
+        from backend.version import __version__
+        
+        # Use versioned filename from creation
+        sequence_file = self._get_versioned_file_path(
+            sequence.id, 
+            sequence.name, 
+            sequence.protocol, 
+            sequence.session_id,
+            __version__
+        )
         
         # Serialize and save
         sequence_data = self._serialize_sequence(sequence)
         with open(sequence_file, 'w') as f:
             json.dump(sequence_data, f, indent=2, default=str)
         
+        # Update index
+        self._update_index(sequence.id, sequence_file)
+        
         return sequence
     
     def get_sequence(self, sequence_id: str) -> Optional[MscSequence]:
         """Retrieve a sequence by ID."""
+        from backend.version import __version__
+        
         sequence_file = self._find_sequence_file(sequence_id)
         if not sequence_file or not os.path.exists(sequence_file):
             return None
@@ -239,13 +323,91 @@ class MscRepository(IMscRepository):
             with open(sequence_file, 'r') as f:
                 data = json.load(f)
             
-            return self._deserialize_sequence(data)
+            sequence = self._deserialize_sequence(data)
+            
+            # Check if file needs migration to current version
+            file_version = data.get('app_version')
+            needs_migration = file_version != __version__
+            
+            if needs_migration:
+                print(f"🔄 Migrating sequence {sequence.name} from version {file_version or 'unversioned'} to {__version__}", flush=True)
+                
+                # Create new versioned filename
+                versioned_file = self._get_versioned_file_path(
+                    sequence.id, 
+                    sequence.name, 
+                    sequence.protocol, 
+                    sequence.session_id,
+                    __version__
+                )
+                
+                # Save migrated version with new filename
+                sequence_data = self._serialize_sequence(sequence)
+                with open(versioned_file, 'w') as f:
+                    json.dump(sequence_data, f, indent=2, default=str)
+                
+                # Update index to point to new file
+                self._update_index(sequence.id, versioned_file)
+                
+                print(f"✅ Migrated to: {os.path.basename(versioned_file)}", flush=True)
+                print(f"📦 Original preserved: {os.path.basename(sequence_file)}", flush=True)
+            
+            return sequence
         except (json.JSONDecodeError, KeyError, ValueError) as e:
             print(f"Error loading sequence {sequence_id}: {e}")
             return None
     
+    def _get_versioned_file_path(self, sequence_id: str, sequence_name: str, protocol: str, session_id: Optional[str], version: str) -> str:
+        """Get file path with version tag in filename."""
+        # Get base directory using existing logic
+        if self.user_id:
+            if session_id:
+                session_dir = os.path.join(self.storage_path, 'users', self.user_id, 'sessions', session_id)
+                if protocol:
+                    protocol_dir = os.path.join(session_dir, protocol)
+                    os.makedirs(protocol_dir, exist_ok=True)
+                    base_path = protocol_dir
+                else:
+                    os.makedirs(session_dir, exist_ok=True)
+                    base_path = session_dir
+            else:
+                if protocol:
+                    protocol_dir = os.path.join(self.storage_path, 'users', self.user_id, protocol)
+                    os.makedirs(protocol_dir, exist_ok=True)
+                    base_path = protocol_dir
+                else:
+                    user_dir = os.path.join(self.storage_path, 'users', self.user_id)
+                    os.makedirs(user_dir, exist_ok=True)
+                    base_path = user_dir
+        elif session_id:
+            session_dir = os.path.join(self.storage_path, 'sessions', session_id)
+            if protocol:
+                protocol_dir = os.path.join(session_dir, protocol)
+                os.makedirs(protocol_dir, exist_ok=True)
+                base_path = protocol_dir
+            else:
+                os.makedirs(session_dir, exist_ok=True)
+                base_path = session_dir
+        else:
+            if protocol:
+                protocol_dir = os.path.join(self.storage_path, protocol)
+                os.makedirs(protocol_dir, exist_ok=True)
+                base_path = protocol_dir
+            else:
+                base_path = self.storage_path
+        
+        # Create filename with version tag: name_id_v0.3.0.json
+        safe_name = self._sanitize_filename(sequence_name) if sequence_name else "sequence"
+        # Remove dots from version for filename safety
+        safe_version = version.replace('.', '_')
+        filename = f"{safe_name}_{sequence_id[:8]}_v{safe_version}.json"
+        
+        return os.path.join(base_path, filename)
+    
     def update_sequence(self, sequence: MscSequence) -> MscSequence:
         """Update an existing sequence."""
+        from backend.version import __version__
+        
         # Check if sequence exists
         existing = self.get_sequence(sequence.id)
         if not existing:
@@ -253,19 +415,26 @@ class MscRepository(IMscRepository):
         
         # Find old file location
         old_file = self._find_sequence_file(sequence.id)
-        sequence_file = self._sequence_file_path(sequence.id, sequence.name, sequence.protocol, sequence.session_id)
         
-        # If file location changed (name or protocol changed), remove old file
-        if old_file and old_file != sequence_file and os.path.exists(old_file):
-            try:
-                os.remove(old_file)
-            except OSError:
-                pass  # Ignore if can't remove
+        # Use versioned filename
+        sequence_file = self._get_versioned_file_path(
+            sequence.id, 
+            sequence.name, 
+            sequence.protocol, 
+            sequence.session_id,
+            __version__
+        )
         
-        # Serialize and save
+        # If file location changed (name or protocol changed), keep old file as backup
+        # Don't remove it - we preserve version history
+        
+        # Serialize and save to (potentially new) location
         sequence_data = self._serialize_sequence(sequence)
         with open(sequence_file, 'w') as f:
             json.dump(sequence_data, f, indent=2, default=str)
+        
+        # Update index with new path
+        self._update_index(sequence.id, sequence_file)
         
         return sequence
     
@@ -278,6 +447,8 @@ class MscRepository(IMscRepository):
         if os.path.exists(sequence_file):
             try:
                 os.remove(sequence_file)
+                # Remove from index
+                self._remove_from_index(sequence_id)
                 return True
             except OSError as e:
                 print(f"Error deleting sequence {sequence_id}: {e}")
@@ -340,6 +511,7 @@ class MscRepository(IMscRepository):
                                 if os.path.isdir(proto_path):
                                     search_paths.append(proto_path)
         
+        print(f"DEBUG: list_sequences searching paths: {search_paths}", flush=True)
         # Get all JSON files in search paths
         for search_path in search_paths:
             if not os.path.exists(search_path):
@@ -355,10 +527,29 @@ class MscRepository(IMscRepository):
                         
                         # Filter by protocol if specified
                         if protocol is None or data.get('protocol') == protocol:
-                            # Filter by session_id if specified
-                            if session_id is None or data.get('session_id') == session_id:
+                            # Infer session_id from path if missing in data
+                            inferred_session_id = None
+                            try:
+                                rel_path = os.path.relpath(sequence_file, self.storage_path)
+                                path_parts = rel_path.split(os.sep)
+                                if len(path_parts) > 2 and path_parts[0] == 'sessions':
+                                    inferred_session_id = path_parts[1]
+                            except ValueError:
+                                pass
+
+                            # Determine session ID from data or path
+                            seq_session_id = data.get('session_id') or data.get('sessionId') or inferred_session_id
+                            
+                            if session_id is None or seq_session_id == session_id:
+                                # Update session_id in data if it was missing to ensure correct deserialization
+                                if seq_session_id and not data.get('session_id'):
+                                    data['session_id'] = seq_session_id
+                                    
                                 sequence = self._deserialize_sequence(data)
                                 sequences.append(sequence)
+                                print(f"DEBUG: Found valid sequence {filename} for session {session_id}", flush=True)
+                            else:
+                                print(f"DEBUG: Skipping {filename}: session {seq_session_id} != {session_id}", flush=True)
                     
                     except (json.JSONDecodeError, KeyError, ValueError) as e:
                         print(f"Error loading sequence file {filename}: {e}", flush=True)
@@ -420,7 +611,7 @@ class MscRepository(IMscRepository):
                 continue
                 
             for filename in os.listdir(search_path):
-                if filename.endswith('.json') and not filename.startswith('example_'):
+                if filename.endswith('.json') and not filename.startswith('example_') and not filename.startswith('_'):
                     sequence_file = os.path.join(search_path, filename)
                     
                     try:
@@ -520,6 +711,8 @@ class MscRepository(IMscRepository):
     
     def create_session(self, session: MscSession) -> MscSession:
         """Create and persist a new session."""
+        from backend.version import __version__
+        
         session_file = self._session_file_path(session.id)
         
         session_data = {
@@ -528,7 +721,8 @@ class MscRepository(IMscRepository):
             'description': session.description,
             'created_at': session.created_at.isoformat(),
             'updated_at': session.updated_at.isoformat(),
-            'is_active': session.is_active
+            'is_active': session.is_active,
+            'app_version': __version__
         }
         
         with open(session_file, 'w') as f:
@@ -643,6 +837,8 @@ class MscRepository(IMscRepository):
     
     def update_session(self, session: MscSession) -> MscSession:
         """Update an existing session."""
+        from backend.version import __version__
+        
         session_file = self._session_file_path(session.id)
         
         if not os.path.exists(session_file):
@@ -654,7 +850,8 @@ class MscRepository(IMscRepository):
             'description': session.description,
             'created_at': session.created_at.isoformat(),
             'updated_at': datetime.now().isoformat(),
-            'is_active': session.is_active
+            'is_active': session.is_active,
+            'app_version': __version__
         }
         
         with open(session_file, 'w') as f:

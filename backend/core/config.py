@@ -10,6 +10,7 @@ class AppConfig(BaseModel):
     log_level: str = "INFO"
     splash_duration: int = 10000
     saved_messages_dir: str = "saved_messages"
+    msc_storage_path: Optional[str] = None  # None for default (backend/msc_storage)
 
     model_config = ConfigDict(extra="ignore")
 
@@ -66,6 +67,18 @@ class ConfigManager:
         if os.path.isabs(path):
             return path
         return os.path.join(self.config_dir, path)
+    
+    def get_msc_storage_path(self) -> str:
+        """Get MSC storage path from config or use default."""
+        if self.config.msc_storage_path:
+            path = self.config.msc_storage_path
+            if os.path.isabs(path):
+                return path
+            # Relative to project root
+            return os.path.abspath(path)
+        # Default: backend/msc_storage (for backward compatibility)
+        base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        return os.path.join(base_dir, 'msc_storage')
 
 # Singleton
 config_manager = ConfigManager()

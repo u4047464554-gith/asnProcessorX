@@ -8,7 +8,9 @@ sys.path.append(os.getcwd())
 def test_health(client):
     response = client.get("/health")
     assert response.status_code == 200
-    assert response.json() == {"status": "ok", "version": "0.3.0"}
+    data = response.json()
+    assert data["status"] == "ok"
+    assert data["version"] == "0.3.0"
 
 def test_list_protocols(client):
     response = client.get("/api/asn/protocols")

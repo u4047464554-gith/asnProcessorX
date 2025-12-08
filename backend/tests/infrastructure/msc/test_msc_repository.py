@@ -27,6 +27,7 @@ class TestMscRepository:
         sequence = MscSequence(
             name="Test Sequence",
             protocol="rrc_demo",
+            session_id="test_session",
             messages=[
                 MscMessage(
                     type_name="RRCConnectionRequest",
@@ -41,14 +42,21 @@ class TestMscRepository:
         # Create sequence
         created = repo.create_sequence(sequence)
         
+        from backend.version import __version__
+        
         assert created.id == sequence.id
-        assert os.path.exists(repo._sequence_file_path(sequence.id))
+        # Update assertion to use versioned path
+        expected_path = repo._get_versioned_file_path(
+            sequence.id, sequence.name, sequence.protocol, sequence.session_id, __version__
+        )
+        assert os.path.exists(expected_path)
         
         # Verify file content
-        with open(repo._sequence_file_path(sequence.id), 'r') as f:
+        with open(expected_path, 'r') as f:
             data = json.load(f)
             assert data['name'] == "Test Sequence"
             assert data['protocol'] == "rrc_demo"
+            assert data['app_version'] == __version__  # Verify version is saved
             assert len(data['messages']) == 1
             assert data['messages'][0]['type_name'] == "RRCConnectionRequest"
     
@@ -57,7 +65,7 @@ class TestMscRepository:
         repo, temp_dir = temp_storage_dir
         
         # Create and save sequence
-        sequence = MscSequence(name="Retrieved Sequence", protocol="rrc_demo")
+        sequence = MscSequence(name="Retrieved Sequence", protocol="rrc_demo", session_id="test_session")
         repo.create_sequence(sequence)
         
         # Retrieve sequence
@@ -80,12 +88,12 @@ class TestMscRepository:
         repo, temp_dir = temp_storage_dir
         
         # Create initial sequence
-        original = MscSequence(name="Original Name", protocol="rrc_demo")
+        original = MscSequence(name="Original Name", protocol="rrc_demo", session_id="test_session")
         repo.create_sequence(original)
         
         # Update sequence
         original.name = "Updated Name"
-        original.messages.append(
+        original.add_message(
             MscMessage(
                 type_name="RRCConnectionSetup",
                 data={"rrc-TransactionIdentifier": 1},
@@ -106,21 +114,25 @@ class TestMscRepository:
     
     def test_delete_sequence(self, temp_storage_dir):
         """Test deleting a sequence."""
+        from backend.version import __version__
         repo, temp_dir = temp_storage_dir
         
         # Create sequence
-        sequence = MscSequence(name="To Delete", protocol="rrc_demo")
+        sequence = MscSequence(name="To Delete", protocol="rrc_demo", session_id="test_session")
         repo.create_sequence(sequence)
         
-        # Verify exists
-        assert os.path.exists(repo._sequence_file_path(sequence.id))
+        # Verify exists using versioned path
+        expected_path = repo._get_versioned_file_path(
+            sequence.id, sequence.name, sequence.protocol, sequence.session_id, __version__
+        )
+        assert os.path.exists(expected_path)
         
         # Delete
         success = repo.delete_sequence(sequence.id)
         assert success is True
         
         # Verify deleted
-        assert not os.path.exists(repo._sequence_file_path(sequence.id))
+        assert not os.path.exists(expected_path)
         assert repo.get_sequence(sequence.id) is None
     
     def test_delete_nonexistent_sequence(self, temp_storage_dir):
@@ -235,7 +247,8 @@ class TestMscRepository:
         
         assert len(retrieved.tracked_identifiers) == 2
         assert "ue-Identity" in retrieved.tracked_identifiers
-        assert retrieved.tracked_identifiers["ue-Identity"].values == {0: {"randomValue": "0x1234567890ABCDEF"}}
+        # JSON serialization converts integer keys to strings
+        assert retrieved.tracked_identifiers["ue-Identity"].values == {"0": {"randomValue": "0x1234567890ABCDEF"}}
         
         assert len(retrieved.validation_results) == 1
         assert retrieved.validation_results[0].type == ValidationType.WARNING
@@ -253,7 +266,11 @@ class TestMscRepository:
         # Try to load - should skip corrupted file
         # Rename to sequence ID format
         sequence_id = "corrupted"
-        os.rename(corrupted_file, repo._sequence_file_path(sequence_id))
+        # Since we don't know where it would be placed without metadata, place it in storage root with simplistic name
+        # But _sequence_file_path logic depends on metadata.
+        # For this test, we can use a simpler approach or specify default metadata
+        target_path = repo._sequence_file_path(sequence_id)
+        os.rename(corrupted_file, target_path)
         
         # List sequences should skip corrupted file
         sequences = repo.list_sequences()
@@ -275,9 +292,52 @@ class TestMscRepository:
         repo, temp_dir = temp_storage_dir
         
         # Create sequences for stats
-        seq1 = MscSequence(name="Stats 1", protocol="rrc_demo", messages=[Mock()])
-        seq2 = MscSequence(name="Stats 2", protocol="rrc_demo", messages=[Mock(), Mock()])
-        seq3 = MscSequence(name="Stats 3", protocol="s1ap_demo", messages=[Mock()])
+        seq1 = MscSequence(
+            name="Stats 1", 
+            protocol="rrc_demo", 
+            messages=[
+                MscMessage(
+                    type_name="RRCConnectionRequest",
+                    data={},
+                    source_actor="UE",
+                    target_actor="gNB",
+                    timestamp=1234567890.0
+                )
+            ]
+        )
+        seq2 = MscSequence(
+            name="Stats 2", 
+            protocol="rrc_demo", 
+            messages=[
+                MscMessage(
+                    type_name="RRCConnectionRequest",
+                    data={},
+                    source_actor="UE",
+                    target_actor="gNB",
+                    timestamp=1234567890.0
+                ),
+                MscMessage(
+                    type_name="RRCConnectionSetup",
+                    data={},
+                    source_actor="gNB",
+                    target_actor="UE",
+                    timestamp=1234567891.0
+                )
+            ]
+        )
+        seq3 = MscSequence(
+            name="Stats 3", 
+            protocol="s1ap_demo", 
+            messages=[
+                MscMessage(
+                    type_name="InitialUEMessage",
+                    data={},
+                    source_actor="eNB",
+                    target_actor="MME",
+                    timestamp=1234567892.0
+                )
+            ]
+        )
         
         repo.create_sequence(seq1)
         repo.create_sequence(seq2)

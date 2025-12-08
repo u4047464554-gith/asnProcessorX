@@ -1,12 +1,12 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useLocalStorage } from '@mantine/hooks';
-import type { 
-  MscSequence, 
-  MscMessage, 
-  ValidationResult, 
-  IdentifierSuggestion 
+import type {
+  MscSequence,
+  MscMessage,
+  ValidationResult,
+  IdentifierSuggestion
 } from '../domain/msc/types';
-import { normalizeSequence, normalizeMessage } from '../domain/msc/types';
+import { normalizeSequence } from '../domain/msc/types';
 import MscService from '../services/mscService';
 
 interface MscEditorState {
@@ -23,32 +23,33 @@ interface MscEditorState {
 interface UseMscEditorReturn {
   // State
   state: MscEditorState;
-  
+
   // Sequence operations
-  createSequence: (name: string, protocol: string) => Promise<void>;
-  loadSequence: (sequenceId: string) => Promise<void>;
-  updateSequence: (updates: any) => Promise<void>;
+  createSequence: (name: string, protocol: string, sessionId?: string | null) => Promise<MscSequence>;
+  loadSequence: (sequenceId: string) => Promise<MscSequence | null>;
+  updateSequence: (updates: any) => Promise<MscSequence | null>;
   deleteSequence: (sequenceId: string) => Promise<boolean>;
-  addMessage: (message: Partial<MscMessage>, index?: number) => Promise<void>;
-  removeMessage: (messageId: string) => Promise<void>;
+  addMessage: (message: Partial<MscMessage>, index?: number) => Promise<MscSequence>;
+  updateMessage: (messageId: string, newData: any) => Promise<MscSequence | null>;
+  removeMessage: (messageId: string) => Promise<boolean>;
   duplicateMessage: (messageId: string) => Promise<void>;
-  
+
   // Validation
-  validateSequence: () => Promise<void>;
+  validateSequence: () => Promise<any>;
   clearValidation: () => void;
-  
+
   // Suggestions
-  getFieldSuggestions: (fieldName: string, messageIndex: number) => Promise<void>;
+  getFieldSuggestions: (fieldName: string, messageIndex: number) => Promise<IdentifierSuggestion[]>;
   applySuggestion: (suggestion: IdentifierSuggestion) => void;
-  
+
   // Identifiers
   detectIdentifiers: (typeName: string) => Promise<string[]>;
-  
+
   // UI actions
   selectMessage: (index: number | null) => void;
   setSequenceName: (name: string) => void;
-  duplicateSequence: () => Promise<void>;
-  
+  duplicateSequence: () => Promise<MscSequence>;
+
   // Utils
   canUndo: boolean;
   canRedo: boolean;
@@ -56,8 +57,11 @@ interface UseMscEditorReturn {
   redo: () => void;
   reset: () => void;
   exportSequence: () => string;
-  importSequence: (data: string) => Promise<void>;
+  importSequence: (data: string) => Promise<MscSequence>;
   loadAllSequences: (sessionId?: string | null) => Promise<void>;
+
+  // Initialization
+  isInitialized: boolean;
 }
 
 const LOCAL_STORAGE_KEY = 'msc-editor-state';
@@ -75,13 +79,14 @@ export const useMscEditor = (): UseMscEditorReturn => {
     selectedMessageIndex: null,
     isValidating: false,
   });
-  
+
   // Persistence
   const [persistedSequences, setPersistedSequences] = useLocalStorage<MscSequence[]>({
     key: `${LOCAL_STORAGE_KEY}-sequences`,
     defaultValue: [],
     serialize: JSON.stringify,
-    deserialize: (value: string) => {
+    deserialize: (value: string | undefined) => {
+      if (!value) return [];
       try {
         const parsed = JSON.parse(value);
         return Array.isArray(parsed) ? parsed : [];
@@ -96,7 +101,7 @@ export const useMscEditor = (): UseMscEditorReturn => {
     key: `${LOCAL_STORAGE_KEY}-current-sequence`,
     defaultValue: null,
     serialize: (value) => value ? JSON.stringify(value) : '',
-    deserialize: (value: string) => {
+    deserialize: (value: string | undefined) => {
       if (!value) return null;
       try {
         return JSON.parse(value);
@@ -113,56 +118,62 @@ export const useMscEditor = (): UseMscEditorReturn => {
   });
 
   // Persist protocol
-  const [persistedProtocol, setPersistedProtocol] = useLocalStorage<string>({
+  const [_persistedProtocol, setPersistedProtocol] = useLocalStorage<string>({
     key: `${LOCAL_STORAGE_KEY}-protocol`,
     defaultValue: DEFAULT_PROTOCOL,
   });
-  
+
   // Services
   const mscService = useMemo(() => new MscService(), []);
-  
+
+  // Track if initialization is complete
+  const [isInitialized, setIsInitialized] = useState(false);
+
   // Effects
   useEffect(() => {
     // Load sequences on mount
     loadAllSequences();
-    
+
     // Restore current sequence from persistence if available
     // Only restore if we don't already have a current sequence (to avoid overwriting)
     if (persistedCurrentSequence && !state.currentSequence) {
       // Normalize persisted sequence to ensure consistent format
       const normalizedSequence = normalizeSequence(persistedCurrentSequence);
-      
+
       // Check if persisted sequence exists in loaded sequences
       const localSeqs = Array.isArray(persistedSequences) ? persistedSequences : [];
       const existsInLoaded = localSeqs.some(seq => seq.id === normalizedSequence.id);
-      
+
       setState(prev => ({
         ...prev,
         currentSequence: normalizedSequence,
         selectedMessageIndex: persistedSelectedIndex,
         // Add to sequences if not already there
-        sequences: existsInLoaded 
-          ? prev.sequences 
+        sequences: existsInLoaded
+          ? prev.sequences
           : [...prev.sequences, normalizedSequence],
       }));
-      
+
       // Update persisted sequence with normalized version
       setPersistedCurrentSequence(normalizedSequence);
     }
+
+    // Mark as initialized after restoring from persistence
+    setIsInitialized(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Auto-save current sequence to localStorage (debounced to avoid excessive writes)
   useEffect(() => {
     if (!state.currentSequence) return;
-    
+
     const timeoutId = setTimeout(() => {
       setPersistedCurrentSequence(state.currentSequence);
     }, 300); // Debounce by 300ms
-    
+
     return () => clearTimeout(timeoutId);
   }, [state.currentSequence, setPersistedCurrentSequence]);
-  
+
   // Also save on beforeunload
   useEffect(() => {
     const handleBeforeUnload = () => {
@@ -170,7 +181,7 @@ export const useMscEditor = (): UseMscEditorReturn => {
         setPersistedCurrentSequence(state.currentSequence);
       }
     };
-    
+
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [state.currentSequence, setPersistedCurrentSequence]);
@@ -179,19 +190,19 @@ export const useMscEditor = (): UseMscEditorReturn => {
   useEffect(() => {
     setPersistedSelectedIndex(state.selectedMessageIndex);
   }, [state.selectedMessageIndex, setPersistedSelectedIndex]);
-  
+
   // Auto-save is handled by local storage persistence via setPersistedSequences
   // No explicit save needed since updateSequence already persists to backend
-  
+
   // Sequence Operations
-  
+
   const createSequence = useCallback(async (name: string, protocol: string = DEFAULT_PROTOCOL, sessionId?: string | null) => {
     setState(prev => ({ ...prev, isLoading: true, error: null }));
-    
+
     try {
       const newSequence = await mscService.createSequence(name, protocol, sessionId || undefined);
       const normalizedSequence = normalizeSequence(newSequence);
-      
+
       setState(prev => ({
         ...prev,
         currentSequence: normalizedSequence,
@@ -200,12 +211,12 @@ export const useMscEditor = (): UseMscEditorReturn => {
         validationResults: [],
         suggestions: []
       }));
-      
+
       // Update persisted sequences and protocol
       setPersistedSequences(prev => [...prev, normalizedSequence]);
       setPersistedProtocol(protocol);
       setPersistedCurrentSequence(normalizedSequence);
-      
+
       return normalizedSequence;
     } catch (error: any) {
       setState(prev => ({ ...prev, error: error.message }));
@@ -214,22 +225,22 @@ export const useMscEditor = (): UseMscEditorReturn => {
       setState(prev => ({ ...prev, isLoading: false }));
     }
   }, [mscService, setPersistedSequences, setPersistedProtocol, setPersistedCurrentSequence]);
-  
+
   const loadSequence = useCallback(async (sequenceId: string) => {
     setState(prev => ({ ...prev, isLoading: true, error: null }));
-    
+
     try {
       const sequence = await mscService.getSequence(sequenceId);
       if (!sequence) {
         throw new Error('Sequence not found');
       }
-      
+
       // Normalize sequence from backend format
       const normalizedSequence = normalizeSequence(sequence);
-      
+
       // Validate on load
       const validation = await mscService.validateSequence(sequenceId);
-      
+
       setState(prev => ({
         ...prev,
         currentSequence: normalizedSequence,
@@ -238,10 +249,10 @@ export const useMscEditor = (): UseMscEditorReturn => {
         suggestions: [],
         error: null
       }));
-      
+
       // Update persisted sequence
       setPersistedCurrentSequence(normalizedSequence);
-      
+
       return normalizedSequence;
     } catch (error: any) {
       setState(prev => ({ ...prev, error: error.message }));
@@ -250,45 +261,45 @@ export const useMscEditor = (): UseMscEditorReturn => {
       setState(prev => ({ ...prev, isLoading: false }));
     }
   }, [mscService, setPersistedCurrentSequence]);
-  
+
   const loadAllSequences = useCallback(async (sessionId?: string | null) => {
     setState(prev => ({ ...prev, isLoading: true }));
-    
+
     try {
       const sequences = await mscService.listSequences(undefined, sessionId || undefined);
-      
+
       // Ensure sequences is an array and normalize them
-      const apiSequences = Array.isArray(sequences) 
-        ? sequences.map(normalizeSequence) 
+      const apiSequences = Array.isArray(sequences)
+        ? sequences.map(normalizeSequence)
         : [];
-      const localSequences = Array.isArray(persistedSequences) 
+      const localSequences = Array.isArray(persistedSequences)
         ? persistedSequences
           .filter(seq => !sessionId || (seq as any).session_id === sessionId)
-          .map(normalizeSequence) 
+          .map(normalizeSequence)
         : [];
-      
+
       // Merge with local storage (prioritize API data)
       const mergedSequences = [
         ...apiSequences,
-        ...localSequences.filter(localSeq => 
+        ...localSequences.filter(localSeq =>
           !apiSequences.some(apiSeq => apiSeq.id === localSeq.id)
         )
       ];
-      
+
       setState(prev => ({
         ...prev,
         sequences: mergedSequences,
         error: null
       }));
-      
+
       setPersistedSequences(mergedSequences);
     } catch (error: any) {
       console.error('Failed to load sequences:', error);
       // Fallback to local storage
-      const localSeqs = Array.isArray(persistedSequences) 
+      const localSeqs = Array.isArray(persistedSequences)
         ? persistedSequences
           .filter(seq => !sessionId || (seq as any).session_id === sessionId)
-          .map(normalizeSequence) 
+          .map(normalizeSequence)
         : [];
       setState(prev => ({
         ...prev,
@@ -299,35 +310,35 @@ export const useMscEditor = (): UseMscEditorReturn => {
       setState(prev => ({ ...prev, isLoading: false }));
     }
   }, [mscService, persistedSequences, setPersistedSequences]);
-  
+
   const updateSequence = useCallback(async (updates: any) => {
     if (!state.currentSequence) {
       throw new Error('No current sequence to update');
     }
-    
+
     setState(prev => ({ ...prev, isLoading: true, error: null }));
-    
+
     try {
       const updated = await mscService.updateSequence(state.currentSequence.id, updates);
       if (!updated) {
         throw new Error('Failed to update sequence');
       }
-      
+
       setState(prev => ({
         ...prev,
         currentSequence: updated,
-        sequences: prev.sequences.map(seq => 
+        sequences: prev.sequences.map(seq =>
           seq.id === updated.id ? updated : seq
         ),
         error: null
       }));
-      
+
       // Update local storage (both sequences list and current sequence)
-      setPersistedSequences(prev => 
+      setPersistedSequences(prev =>
         prev.map(seq => seq.id === updated.id ? updated : seq)
       );
       // Current sequence is auto-saved by the useEffect above
-      
+
       return updated;
     } catch (error: any) {
       setState(prev => ({ ...prev, error: error.message }));
@@ -336,13 +347,13 @@ export const useMscEditor = (): UseMscEditorReturn => {
       setState(prev => ({ ...prev, isLoading: false }));
     }
   }, [state.currentSequence, mscService, setPersistedSequences]);
-  
+
   const deleteSequence = useCallback(async (sequenceId: string) => {
     setState(prev => ({ ...prev, isLoading: true, error: null }));
-    
+
     try {
       const success = await mscService.deleteSequence(sequenceId);
-      
+
       if (success) {
         setState(prev => ({
           ...prev,
@@ -351,10 +362,10 @@ export const useMscEditor = (): UseMscEditorReturn => {
           selectedMessageIndex: null,
           error: null
         }));
-        
+
         setPersistedSequences(prev => prev.filter(seq => seq.id !== sequenceId));
       }
-      
+
       return success;
     } catch (error: any) {
       setState(prev => ({ ...prev, error: error.message }));
@@ -363,14 +374,14 @@ export const useMscEditor = (): UseMscEditorReturn => {
       setState(prev => ({ ...prev, isLoading: false }));
     }
   }, [mscService, setPersistedSequences]);
-  
+
   const addMessage = useCallback(async (message: Partial<MscMessage>, index?: number) => {
     if (!state.currentSequence) {
       throw new Error('No current sequence to add message to');
     }
-    
+
     setState(prev => ({ ...prev, isLoading: true, error: null }));
-    
+
     try {
       const messageData = {
         type_name: message.type_name || '',
@@ -378,27 +389,27 @@ export const useMscEditor = (): UseMscEditorReturn => {
         source_actor: message.source_actor || 'UE',
         target_actor: message.target_actor || 'gNB'
       };
-      
+
       const updated = await mscService.addMessageToSequence(state.currentSequence.id, messageData);
-      
+
       setState(prev => ({
         ...prev,
         currentSequence: updated,
-        sequences: prev.sequences.map(seq => 
+        sequences: prev.sequences.map(seq =>
           seq.id === updated.id ? updated : seq
         ),
         selectedMessageIndex: index !== undefined ? index : updated.messages.length - 1,
         error: null
       }));
-      
+
       // Update persisted sequences
-      setPersistedSequences(prev => 
+      setPersistedSequences(prev =>
         prev.map(seq => seq.id === updated.id ? updated : seq)
       );
-      
+
       // Revalidate after adding message
       await validateSequence();
-      
+
       return updated;
     } catch (error: any) {
       setState(prev => ({ ...prev, error: error.message }));
@@ -407,37 +418,77 @@ export const useMscEditor = (): UseMscEditorReturn => {
       setState(prev => ({ ...prev, isLoading: false }));
     }
   }, [state.currentSequence, mscService]);
-  
-  const removeMessage = useCallback(async (messageId: string) => {
+
+  const updateMessage = useCallback(async (messageId: string, newData: any) => {
     if (!state.currentSequence) {
-      throw new Error('No current sequence to remove message from');
+      throw new Error('No current sequence');
     }
-    
+
     setState(prev => ({ ...prev, isLoading: true, error: null }));
-    
+
     try {
-      const updates = { remove_message: messageId };
+      const updates = {
+        update_message: { id: messageId, data: newData }
+      };
+
       const updated = await mscService.updateSequence(state.currentSequence.id, updates);
-      
+
       if (updated) {
         setState(prev => ({
           ...prev,
           currentSequence: updated,
-          sequences: prev.sequences.map(seq => 
+          sequences: prev.sequences.map(seq =>
+            seq.id === updated.id ? updated : seq
+          ),
+          error: null
+        }));
+
+        setPersistedSequences(prev =>
+          prev.map(seq => seq.id === updated.id ? updated : seq)
+        );
+
+        // Revalidate after updating message
+        await validateSequence();
+      }
+      return updated;
+    } catch (error: any) {
+      setState(prev => ({ ...prev, error: error.message }));
+      throw error;
+    } finally {
+      setState(prev => ({ ...prev, isLoading: false }));
+    }
+  }, [state.currentSequence, mscService, setPersistedSequences]);
+
+  const removeMessage = useCallback(async (messageId: string) => {
+    if (!state.currentSequence) {
+      throw new Error('No current sequence to remove message from');
+    }
+
+    setState(prev => ({ ...prev, isLoading: true, error: null }));
+
+    try {
+      const updates = { remove_message: messageId };
+      const updated = await mscService.updateSequence(state.currentSequence.id, updates);
+
+      if (updated) {
+        setState(prev => ({
+          ...prev,
+          currentSequence: updated,
+          sequences: prev.sequences.map(seq =>
             seq.id === updated.id ? updated : seq
           ),
           selectedMessageIndex: null,
           error: null
         }));
-        
+
         // Update persisted sequences
-        setPersistedSequences(prev => 
+        setPersistedSequences(prev =>
           prev.map(seq => seq.id === updated.id ? updated : seq)
         );
-        
+
         await validateSequence();
       }
-      
+
       return updated !== null;
     } catch (error: any) {
       setState(prev => ({ ...prev, error: error.message }));
@@ -446,45 +497,45 @@ export const useMscEditor = (): UseMscEditorReturn => {
       setState(prev => ({ ...prev, isLoading: false }));
     }
   }, [state.currentSequence, mscService]);
-  
+
   const duplicateMessage = useCallback(async (messageId: string) => {
     if (!state.currentSequence) {
       throw new Error('No current sequence to duplicate message');
     }
-    
+
     const messageIndex = state.currentSequence.messages.findIndex(m => m.id === messageId);
     if (messageIndex === -1) {
       throw new Error('Message not found');
     }
-    
+
     const messageToDuplicate = state.currentSequence.messages[messageIndex];
     const newMessage = {
       ...messageToDuplicate,
       id: undefined,  // Will generate new ID
       timestamp: Date.now() / 1000
     };
-    
+
     await addMessage(newMessage, messageIndex + 1);
   }, [state.currentSequence, addMessage]);
-  
+
   // Validation
-  
+
   const validateSequence = useCallback(async () => {
     if (!state.currentSequence) {
       return;
     }
-    
+
     setState(prev => ({ ...prev, isValidating: true, error: null }));
-    
+
     try {
       const validation = await mscService.validateSequence(state.currentSequence.id);
-      
+
       setState(prev => ({
         ...prev,
         validationResults: validation.results,
         error: null
       }));
-      
+
       return validation;
     } catch (error: any) {
       setState(prev => ({ ...prev, error: error.message }));
@@ -493,7 +544,7 @@ export const useMscEditor = (): UseMscEditorReturn => {
       setState(prev => ({ ...prev, isValidating: false }));
     }
   }, [state.currentSequence, mscService]);
-  
+
   const clearValidation = useCallback(() => {
     setState(prev => ({
       ...prev,
@@ -501,14 +552,14 @@ export const useMscEditor = (): UseMscEditorReturn => {
       suggestions: []
     }));
   }, []);
-  
+
   // Suggestions
-  
+
   const getFieldSuggestions = useCallback(async (fieldName: string, messageIndex: number) => {
     if (!state.currentSequence) {
-      return;
+      return [];
     }
-    
+
     try {
       const suggestions = await mscService.getFieldSuggestions(
         state.currentSequence.id,
@@ -517,12 +568,12 @@ export const useMscEditor = (): UseMscEditorReturn => {
         state.currentSequence.protocol,
         state.currentSequence.messages[messageIndex]?.type_name || ''
       );
-      
+
       setState(prev => ({
         ...prev,
         suggestions
       }));
-      
+
       return suggestions;
     } catch (error: any) {
       console.error('Failed to get suggestions:', error);
@@ -531,26 +582,27 @@ export const useMscEditor = (): UseMscEditorReturn => {
         suggestions: [],
         error: error.message
       }));
+      return [];
     }
   }, [state.currentSequence, mscService]);
-  
+
   const applySuggestion = useCallback((suggestion: IdentifierSuggestion) => {
     if (!state.currentSequence || state.selectedMessageIndex === null) {
       return;
     }
-    
+
     const currentMessage = state.currentSequence.messages[state.selectedMessageIndex];
     const updatedData = {
       ...currentMessage.data,
       [suggestion.identifier]: suggestion.value
     };
-    
+
     // Update message data
     const updatedMessage = {
       ...currentMessage,
       data: updatedData
     };
-    
+
     // Update sequence locally first
     const updatedSequence = {
       ...state.currentSequence,
@@ -558,29 +610,29 @@ export const useMscEditor = (): UseMscEditorReturn => {
         index === state.selectedMessageIndex ? updatedMessage : msg
       )
     } as MscSequence;
-    
+
     setState(prev => ({
       ...prev,
       currentSequence: updatedSequence,
       suggestions: []
     }));
-    
+
     // Persist update
     updateSequence({
       add_message: updatedMessage  // Use update mechanism
     }).catch(console.error);
   }, [state.currentSequence, state.selectedMessageIndex, updateSequence]);
-  
+
   // Identifier Detection
-  
+
   const detectIdentifiers = useCallback(async (typeName: string) => {
     if (!state.currentSequence) {
       return [];
     }
-    
+
     try {
       const identifiers = await mscService.detectIdentifiers(
-        state.currentSequence.protocol, 
+        state.currentSequence.protocol,
         typeName
       );
       return identifiers;
@@ -589,80 +641,93 @@ export const useMscEditor = (): UseMscEditorReturn => {
       return [];
     }
   }, [state.currentSequence, mscService]);
-  
+
   // UI Actions
-  
+
   const selectMessage = useCallback((index: number | null) => {
     setState(prev => ({
       ...prev,
       selectedMessageIndex: index,
       suggestions: index !== null ? prev.suggestions : []
     }));
-    
+
     if (index !== null) {
       // Clear suggestions for new selection
       getFieldSuggestions('', index);
     }
   }, [getFieldSuggestions]);
-  
+
   const setSequenceName = useCallback((name: string) => {
     if (!state.currentSequence) {
       console.warn('Cannot update sequence name: no current sequence');
       return;
     }
-    
+
     // Only update if name actually changed
     if (name === state.currentSequence.name) {
       return;
     }
-    
+
     // Update optimistically in state first
     setState(prev => ({
       ...prev,
       currentSequence: prev.currentSequence ? { ...prev.currentSequence, name } : null
     }));
-    
+
     // Then update in backend
     updateSequence({ name }).catch((error) => {
       console.error('Failed to update sequence name:', error);
+
+      const errorMessage = error.message || 'Failed to update sequence name';
+
+      // If sequence not found (404), clear it from state
+      if (errorMessage.toLowerCase().includes('not found')) {
+        setState(prev => ({
+          ...prev,
+          currentSequence: null,
+          error: 'Sequence not found on server (it may have been deleted)'
+        }));
+        return;
+      }
+
       // Revert on error
       setState(prev => ({
         ...prev,
         currentSequence: prev.currentSequence ? { ...prev.currentSequence, name: state.currentSequence?.name || '' } : null,
-        error: error.message || 'Failed to update sequence name'
+        error: errorMessage
       }));
     });
   }, [state.currentSequence, updateSequence]);
-  
+
   const duplicateSequence = useCallback(async () => {
     if (!state.currentSequence) {
-      return;
+      throw new Error('No current sequence');
     }
-    
+
     try {
       const newName = `${state.currentSequence.name} (Copy)`;
       const duplicated = await createSequence(newName, state.currentSequence.protocol);
-      
+
       // Copy all messages
       for (const message of state.currentSequence.messages) {
         await addMessage(message, undefined);
       }
-      
+
       // Reload to get updated sequence
       await loadSequence(duplicated.id);
-      
+
       return duplicated;
     } catch (error: any) {
       setState(prev => ({ ...prev, error: error.message }));
       throw error;
     }
   }, [state.currentSequence, createSequence, addMessage, loadSequence]);
-  
+
   // Undo/Redo (simple implementation using history)
   const [history, setHistory] = useState<MscSequence[]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [lastSavedSequenceId, setLastSavedSequenceId] = useState<string | null>(null);
-  
+
   // Save to history only when sequence content actually changes (not just on state update)
   useEffect(() => {
     if (state.currentSequence) {
@@ -671,7 +736,7 @@ export const useMscEditor = (): UseMscEditorReturn => {
         id: state.currentSequence.id,
         messages: state.currentSequence.messages.map(m => ({ id: m.id, type_name: m.type_name }))
       });
-      
+
       if (sequenceKey !== lastSavedSequenceId) {
         setLastSavedSequenceId(sequenceKey);
         setHistory(prev => {
@@ -688,45 +753,45 @@ export const useMscEditor = (): UseMscEditorReturn => {
       }
     }
   }, [state.currentSequence?.id, state.currentSequence?.messages.length]);
-  
+
   const canUndo = historyIndex > 0;
   const canRedo = historyIndex < history.length - 1;
-  
+
   const undo = useCallback(() => {
     if (canUndo && historyIndex > 0) {
       const previous = history[historyIndex - 1];
       setHistoryIndex(historyIndex - 1);
-      setState(prev => ({ 
-        ...prev, 
+      setState(prev => ({
+        ...prev,
         currentSequence: previous,
         validationResults: [],  // Revalidate on undo
         suggestions: []
       }));
-      
+
       // Revalidate
       if (previous) {
         validateSequence();
       }
     }
   }, [history, historyIndex, canUndo, validateSequence]);
-  
+
   const redo = useCallback(() => {
     if (canRedo && historyIndex < history.length - 1) {
       const next = history[historyIndex + 1];
       setHistoryIndex(historyIndex + 1);
-      setState(prev => ({ 
-        ...prev, 
+      setState(prev => ({
+        ...prev,
         currentSequence: next,
         validationResults: [],
         suggestions: []
       }));
-      
+
       if (next) {
         validateSequence();
       }
     }
   }, [history, historyIndex, canRedo, validateSequence]);
-  
+
   const reset = useCallback(() => {
     setState({
       currentSequence: null,
@@ -742,21 +807,21 @@ export const useMscEditor = (): UseMscEditorReturn => {
     setHistoryIndex(-1);
     setPersistedSequences([]);
   }, [setPersistedSequences]);
-  
+
   // Export/Import
-  
+
   const exportSequence = useCallback(() => {
     if (!state.currentSequence) {
       return '';
     }
-    
+
     const exportData = {
       ...state.currentSequence,
       // Remove non-serializable fields
-      created_at: state.currentSequence.created_at.toISOString(),
-      updated_at: state.currentSequence.updated_at.toISOString(),
+      created_at: new Date(state.currentSequence.createdAt).toISOString(),
+      updated_at: new Date(state.currentSequence.updatedAt).toISOString(),
       // Convert validation results to plain objects
-      validation_results: state.currentSequence.validation_results.map(r => ({
+      validation_results: state.currentSequence.validationResults.map(r => ({
         type: r.type,
         message: r.message,
         field: r.field,
@@ -764,25 +829,25 @@ export const useMscEditor = (): UseMscEditorReturn => {
         code: r.code
       }))
     };
-    
+
     return JSON.stringify(exportData, null, 2);
   }, [state.currentSequence]);
-  
+
   const importSequence = useCallback(async (data: string) => {
     try {
       const parsed = JSON.parse(data);
-      
+
       // Basic validation of imported data
       if (!parsed.id || !parsed.protocol || !Array.isArray(parsed.messages)) {
         throw new Error('Invalid sequence data format');
       }
-      
+
       // Create new sequence from imported data
       const importedSequence = await createSequence(
         parsed.name || 'Imported Sequence',
         parsed.protocol
       );
-      
+
       // Add messages from import
       for (const msgData of parsed.messages) {
         await addMessage({
@@ -792,7 +857,7 @@ export const useMscEditor = (): UseMscEditorReturn => {
           target_actor: msgData.target_actor
         });
       }
-      
+
       // Set validation results if present
       if (parsed.validation_results) {
         setState(prev => ({
@@ -806,42 +871,43 @@ export const useMscEditor = (): UseMscEditorReturn => {
           }))
         }));
       }
-      
+
       return importedSequence;
     } catch (error: any) {
       setState(prev => ({ ...prev, error: `Import failed: ${error.message}` }));
       throw error;
     }
   }, [createSequence, addMessage]);
-  
+
   return {
     state,
-    
+
     // Sequence operations
     createSequence,
     loadSequence,
     updateSequence,
     deleteSequence,
     addMessage,
+    updateMessage,
     removeMessage,
     duplicateMessage,
-    
+
     // Validation
     validateSequence,
     clearValidation,
-    
+
     // Suggestions
     getFieldSuggestions,
     applySuggestion,
-    
+
     // Identifiers
     detectIdentifiers,
-    
+
     // UI actions
     selectMessage,
     setSequenceName,
     duplicateSequence,
-    
+
     // Utils
     canUndo,
     canRedo,
@@ -851,6 +917,9 @@ export const useMscEditor = (): UseMscEditorReturn => {
     exportSequence,
     importSequence,
     loadAllSequences,
+
+    // Initialization
+    isInitialized,
   };
 };
 
