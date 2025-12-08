@@ -23,12 +23,41 @@ It provides three modes of operation:
 - **C Code Generation**: Generate C stubs (`asn1c` based) for selected protocols (requires `asn1c` installed).
 - **Service Mode**: The application can act as a configurable server/monitor for the ASN.1 processing engine.
 
+
 ## Documentation
 
 - **[Architecture Guide](docs/ARCHITECTURE.md)**: Detailed system architecture, data flow diagrams, and design decisions
 - **[API Reference](API.md)**: Full REST API documentation
+- **[Development Workflows](WORKFLOWS.md)**: TDD practices, testing guidelines, and release process
 
-## Quick Start (Desktop App)
+## Quick Start (Web App - For Testing/Development)
+
+**No development experience required!** Just download and run:
+
+### Windows
+1. Download or clone this repository
+2. Double-click `RUN_WEBAPP.bat`
+3. Wait for the browser to open automatically
+4. Start using the app at http://localhost:5173
+
+### Linux/Mac
+1. Download or clone this repository
+2. Make the script executable: `chmod +x RUN_WEBAPP.sh`
+3. Run: `./RUN_WEBAPP.sh`
+4. Open http://localhost:5173 in your browser
+
+**What it does:**
+- ✅ Checks if Python and Node.js are installed
+- ✅ Creates virtual environment automatically
+- ✅ Installs all dependencies
+- ✅ Starts backend and frontend servers
+- ✅ Opens the app in your browser
+
+**First run takes 2-3 minutes** (installing dependencies). Subsequent runs are instant!
+
+To stop: Press `Ctrl+C` in the terminal window.
+
+## Quick Start (Desktop App - For Production Use)
 
 Download the latest installer from the [Releases Page](https://github.com/u4047464554-gith/asnProcessorX/releases).
 
