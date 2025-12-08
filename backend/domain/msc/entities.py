@@ -162,6 +162,16 @@ class MscSequence:
                 return True
         return False
     
+    def update_message(self, message_id: str, new_data: Dict[str, Any]) -> bool:
+        """Update message data by ID."""
+        for i, msg in enumerate(self.messages):
+            if msg.id == message_id:
+                updated_msg = msg.update_data(new_data)
+                self.messages[i] = updated_msg
+                self.updated_at = datetime.now()
+                return True
+        return False
+    
     def _update_tracked_identifiers(self, message: MscMessage) -> None:
         """Business rule: Extract and track identifier values from message data."""
         # This would integrate with IIdentifierDetector to know which fields to track

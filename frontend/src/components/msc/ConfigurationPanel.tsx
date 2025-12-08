@@ -1,23 +1,22 @@
 import React, { useMemo } from 'react';
-import { 
-  Paper, 
-  Stack, 
-  Text, 
-  Table, 
-  Group, 
-  Badge, 
-  ActionIcon, 
-  ScrollArea, 
-  Tooltip, 
+import {
+  Paper,
+  Stack,
+  Text,
+  Table,
+  Group,
+  Badge,
+  ActionIcon,
+  ScrollArea,
+  Tooltip,
   Button,
-  Divider 
+  Divider
 } from '@mantine/core';
-import { 
-  IconAlertCircle, 
-  IconCheck, 
-  IconX, 
-  IconEdit, 
-  IconCopy, 
+import {
+  IconAlertCircle,
+  IconCheck,
+  IconEdit,
+  IconCopy,
   IconDatabase,
   IconRefresh,
   IconCircleDot
@@ -33,11 +32,7 @@ interface ConfigurationPanelProps {
   selectedIdentifier?: string;
 }
 
-const VALIDATION_COLORS = {
-  error: 'red.6',
-  warning: 'orange.6',
-  info: 'blue.6'
-};
+
 
 const CONFLICT_COLORS = {
   consistent: 'green',
@@ -53,10 +48,10 @@ export const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
   selectedIdentifier
 }) => {
   const { state, validateSequence, clearValidation } = useMscEditor();
-  
+
   const trackedIdentifiers = useMemo(() => {
     if (!sequence) return [];
-    
+
     return Object.entries(sequence.configurations || {}).map(([name, config]) => ({
       name,
       config: config as TrackedConfiguration,
@@ -68,7 +63,7 @@ export const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
 
   const validationSummary = useMemo(() => {
     if (!sequence?.validationResults) return { errors: 0, warnings: 0 };
-    
+
     return sequence.validationResults.reduce(
       (acc, result) => {
         if (result.type === 'error') acc.errors++;
@@ -87,19 +82,19 @@ export const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
     conflicts: string[];
   }, index: number) => {
     const isSelected = selectedIdentifier === identifier.name;
-    const rowStyle = isSelected 
+    const rowStyle = isSelected
       ? { backgroundColor: '#eff6ff', borderLeft: '3px solid #3b82f6' }
-      : index % 2 === 0 
+      : index % 2 === 0
         ? { backgroundColor: '#f8fafc' }
         : {};
 
-    const conflictColor = identifier.isConsistent 
-      ? CONFLICT_COLORS.consistent 
+    const conflictColor = identifier.isConsistent
+      ? CONFLICT_COLORS.consistent
       : CONFLICT_COLORS.conflicting;
 
     return (
-      <tr 
-        key={identifier.name} 
+      <tr
+        key={identifier.name}
         style={rowStyle}
         onClick={() => onIdentifierSelect?.(identifier.name)}
         className="cursor-pointer hover:bg-blue-50 transition-colors"
@@ -110,10 +105,10 @@ export const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
               {identifier.name}
             </Text>
             {identifier.conflicts.length > 0 && (
-              <Tooltip 
+              <Tooltip
                 label={identifier.conflicts.join('\n')}
                 multiline
-                width={250}
+                w={250}
                 withArrow
               >
                 <ActionIcon size="xs" color="red" variant="light">
@@ -123,9 +118,9 @@ export const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
             )}
           </Group>
         </td>
-        
+
         <td>
-          <Badge 
+          <Badge
             color={conflictColor}
             size="sm"
             variant={identifier.isConsistent ? "filled" : "light"}
@@ -133,22 +128,22 @@ export const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
             {identifier.isConsistent ? 'Consistent' : `${identifier.conflicts.length} conflicts`}
           </Badge>
         </td>
-        
+
         <td>
           <Text size="sm" c="dimmed">
             {identifier.messageCount} messages
           </Text>
         </td>
-        
+
         <td>
           <Group gap="xs">
             {Object.values(identifier.config.values || {}).slice(-3).map((value, idx) => (
               <Tooltip key={idx} label={`Message ${idx}`}>
-                <Badge 
-                  size="xs" 
-                  variant="light" 
+                <Badge
+                  size="xs"
+                  variant="light"
                   color="gray"
-                  style={{ 
+                  style={{
                     fontFamily: 'monospace',
                     fontSize: '10px',
                     maxWidth: '80px',
@@ -167,12 +162,12 @@ export const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
             )}
           </Group>
         </td>
-        
+
         <td>
           <Group gap="xs">
-            <ActionIcon 
-              size="xs" 
-              variant="subtle" 
+            <ActionIcon
+              size="xs"
+              variant="subtle"
               color="gray"
               onClick={(e) => {
                 e.stopPropagation();
@@ -181,9 +176,9 @@ export const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
             >
               <IconCopy size={12} />
             </ActionIcon>
-            <ActionIcon 
-              size="xs" 
-              variant="subtle" 
+            <ActionIcon
+              size="xs"
+              variant="subtle"
               color="gray"
               onClick={(e) => {
                 e.stopPropagation();
@@ -213,7 +208,7 @@ export const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
             </Text>
           </Group>
         </td>
-        
+
         {result.field && (
           <td>
             <Text size="sm" c="dimmed">
@@ -221,7 +216,7 @@ export const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
             </Text>
           </td>
         )}
-        
+
         {result.messageIndex !== undefined && (
           <td>
             <Text size="sm" c="dimmed">
@@ -229,13 +224,13 @@ export const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
             </Text>
           </td>
         )}
-        
+
         <td>
           <Badge color={result.type} size="xs">
             {result.type}
           </Badge>
         </td>
-        
+
         <td>
           <Text size="sm" c="dimmed">
             {result.code || 'VALIDATION'}
@@ -258,24 +253,24 @@ export const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
         </Paper>
       );
     }
-    
+
     return (
       <Stack gap="sm">
         <Group justify="apart">
           <Text size="sm" fw={500}>Validation Results</Text>
           <Group>
-            <Button 
-              size="xs" 
-              variant="subtle" 
-              leftIcon={<IconRefresh size={14} />}
+            <Button
+              size="xs"
+              variant="subtle"
+              leftSection={<IconRefresh size={14} />}
               onClick={validateSequence}
               loading={state.isValidating}
             >
               Revalidate
             </Button>
-            <Button 
-              size="xs" 
-              variant="subtle" 
+            <Button
+              size="xs"
+              variant="subtle"
               color="gray"
               onClick={clearValidation}
             >
@@ -283,7 +278,7 @@ export const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
             </Button>
           </Group>
         </Group>
-        
+
         <ScrollArea h={200}>
           <Table>
             <thead>
@@ -327,7 +322,7 @@ export const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
             {trackedIdentifiers.length}
           </Text>
         </Paper>
-        
+
         <Paper p="sm">
           <Group justify="center" mb="xs">
             <IconAlertCircle size={16} color={validationSummary.errors > 0 ? 'red' : 'green'} />
@@ -337,7 +332,7 @@ export const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
             {validationSummary.errors}
           </Text>
         </Paper>
-        
+
         <Paper p="sm">
           <Group justify="center" mb="xs">
             <IconCircleDot size={16} color={validationSummary.warnings > 0 ? 'orange' : 'green'} />
@@ -359,7 +354,7 @@ export const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
             <IconRefresh size={14} />
           </ActionIcon>
         </Group>
-        
+
         <ScrollArea h={height * 0.4}>
           <Table>
             <thead>

@@ -4,18 +4,18 @@ import type { TraceResponsePayload } from '../components/trace/types';
 
 // Configuration
 const resolveApiBase = () => {
-  if (import.meta.env.VITE_API_BASE) {
-    return import.meta.env.VITE_API_BASE as string;
-  }
-  if (import.meta.env.DEV) {
-    return 'http://localhost:8000';
-  }
-  return undefined;
+    if (import.meta.env.VITE_API_BASE) {
+        return import.meta.env.VITE_API_BASE as string;
+    }
+    if (import.meta.env.DEV) {
+        return 'http://localhost:8000';
+    }
+    return undefined;
 };
 
 const apiBase = resolveApiBase();
 if (apiBase) {
-  axios.defaults.baseURL = apiBase;
+    axios.defaults.baseURL = apiBase;
 }
 
 // Types
@@ -88,39 +88,55 @@ export const AsnService = {
         });
         return res.data;
     },
-    
+
     async generateCStubs(protocol: string, types: string[]): Promise<Blob> {
-         const res = await axios.post('/api/asn/codegen', {
-              protocol,
-              types,
-              options: { 'compound-names': true }
-          }, {
-              responseType: 'blob'
-          });
-          return res.data;
+        const res = await axios.post('/api/asn/codegen', {
+            protocol,
+            types,
+            options: { 'compound-names': true }
+        }, {
+            responseType: 'blob'
+        });
+        return res.data;
     },
 
     // Messages
-    async listSavedMessages(): Promise<string[]> {
-        const res = await axios.get<string[]>('/api/messages');
+    // Messages
+    async listSavedMessages(sessionId?: string): Promise<string[]> {
+        const url = sessionId && sessionId !== 'default'
+            ? `/api/sessions/${sessionId}/messages`
+            : '/api/messages';
+        const res = await axios.get<string[]>(url);
         return res.data;
     },
-    
-    async saveMessage(filename: string, protocol: string, type: string, data: any): Promise<any> {
-        return axios.post('/api/messages', { filename, protocol, type, data });
+
+    async saveMessage(filename: string, protocol: string, type: string, data: any, sessionId?: string): Promise<any> {
+        const url = sessionId && sessionId !== 'default'
+            ? `/api/sessions/${sessionId}/messages`
+            : '/api/messages';
+        return axios.post(url, { filename, protocol, type, data });
     },
-    
-    async loadMessage(filename: string): Promise<any> {
-        const res = await axios.get<any>(`/api/messages/${filename}`);
+
+    async loadMessage(filename: string, sessionId?: string): Promise<any> {
+        const url = sessionId && sessionId !== 'default'
+            ? `/api/sessions/${sessionId}/messages/${filename}`
+            : `/api/messages/${filename}`;
+        const res = await axios.get<any>(url);
         return res.data;
     },
-    
-    async deleteMessage(filename: string): Promise<any> {
-        return axios.delete(`/api/messages/${filename}`);
+
+    async deleteMessage(filename: string, sessionId?: string): Promise<any> {
+        const url = sessionId && sessionId !== 'default'
+            ? `/api/sessions/${sessionId}/messages/${filename}`
+            : `/api/messages/${filename}`;
+        return axios.delete(url);
     },
-    
-    async clearMessages(): Promise<any> {
-        return axios.delete('/api/messages');
+
+    async clearMessages(sessionId?: string): Promise<any> {
+        const url = sessionId && sessionId !== 'default'
+            ? `/api/sessions/${sessionId}/messages`
+            : '/api/messages';
+        return axios.delete(url);
     }
 };
 

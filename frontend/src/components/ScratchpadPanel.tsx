@@ -1,46 +1,51 @@
 import { useState, useEffect } from 'react';
-import { Paper, Textarea, Group, Button, Text, FileButton, Collapse, ActionIcon, Stack } from '@mantine/core';
-import { IconDownload, IconUpload, IconTrash, IconChevronDown, IconChevronRight, IconNote } from '@tabler/icons-react';
+import { Paper, Textarea, Group, Button, Text, Collapse, ActionIcon, Stack } from '@mantine/core';
+import { IconDeviceFloppy, IconTrash, IconChevronDown, IconChevronRight, IconNote } from '@tabler/icons-react';
 import { useDebouncedValue } from '@mantine/hooks';
+import axios from 'axios';
+import { useSession } from '../hooks/useSession';
 
 export function ScratchpadPanel() {
+    const { currentSessionId } = useSession();
     const [content, setContent] = useState('');
     const [opened, setOpened] = useState(() => {
         return localStorage.getItem('asn-scratchpad-opened') === 'true';
     });
+    const [loading, setLoading] = useState(true);
 
+    // Load from backend on mount or session change
     useEffect(() => {
-        const saved = localStorage.getItem('asn-scratchpad');
-        if (saved) setContent(saved);
-    }, []);
+        if (!currentSessionId) return;
+        setLoading(true);
+        axios.get(`/api/sessions/${currentSessionId}/scratchpad`)
+            .then(res => {
+                setContent(res.data.content || '');
+            })
+            .catch(() => {
+                setContent('');
+            })
+            .finally(() => setLoading(false));
+    }, [currentSessionId]);
 
+    // Auto-save to backend (debounced)
     const [debouncedContent] = useDebouncedValue(content, 1000);
     useEffect(() => {
-        localStorage.setItem('asn-scratchpad', debouncedContent);
-    }, [debouncedContent]);
+        if (loading || !currentSessionId) return;
+        axios.put(`/api/sessions/${currentSessionId}/scratchpad`, { content: debouncedContent })
+            .catch(console.error);
+    }, [debouncedContent, loading, currentSessionId]);
 
     useEffect(() => {
         localStorage.setItem('asn-scratchpad-opened', String(opened));
     }, [opened]);
 
-    const handleDownload = () => {
-        const blob = new Blob([content], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'scratchpad.txt';
-        a.click();
-        URL.revokeObjectURL(url);
-    };
-
-    const handleUpload = (file: File | null) => {
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = (e) => {
-             const text = e.target?.result as string;
-             setContent(text); 
-        };
-        reader.readAsText(file);
+    const handleSave = async () => {
+        if (!currentSessionId) return;
+        try {
+            await axios.put(`/api/sessions/${currentSessionId}/scratchpad`, { content });
+        } catch (e) {
+            console.error('Failed to save scratchpad:', e);
+        }
     };
 
     return (
@@ -56,8 +61,8 @@ export function ScratchpadPanel() {
             </Group>
             <Collapse in={opened}>
                 <Stack mt="sm">
-                    <Textarea 
-                        value={content} 
+                    <Textarea
+                        value={content}
                         onChange={(e) => setContent(e.currentTarget.value)}
                         autosize
                         minRows={5}
@@ -66,22 +71,11 @@ export function ScratchpadPanel() {
                         style={{ fontFamily: 'monospace' }}
                     />
                     <Group justify="flex-end">
-                         <FileButton onChange={handleUpload} accept="text/plain">
-                            {(props) => <Button {...props} variant="default" size="xs" leftSection={<IconUpload size="0.8rem"/>}>Load</Button>}
-                         </FileButton>
-                         <Button variant="default" size="xs" onClick={handleDownload} leftSection={<IconDownload size="0.8rem"/>}>Save to File</Button>
-                         <Button variant="subtle" color="red" size="xs" onClick={() => setContent('')} leftSection={<IconTrash size="0.8rem"/>}>Clear</Button>
+                        <Button variant="default" size="xs" onClick={handleSave} leftSection={<IconDeviceFloppy size="0.8rem" />}>Save</Button>
+                        <Button variant="subtle" color="red" size="xs" onClick={() => setContent('')} leftSection={<IconTrash size="0.8rem" />}>Clear</Button>
                     </Group>
                 </Stack>
             </Collapse>
         </Paper>
     );
 }
-
-
-
-
-
-
-
-

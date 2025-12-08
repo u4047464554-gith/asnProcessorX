@@ -2,6 +2,7 @@ export interface MscSequence {
   id: string;
   name: string;
   protocol: string;
+  sessionId?: string;
   messages: MscMessage[];
   subSequences: MscSequence[];
   configurations: TrackedConfiguration[] | Record<string, TrackedConfiguration>;

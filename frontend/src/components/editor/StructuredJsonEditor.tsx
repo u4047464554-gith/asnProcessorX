@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { 
-    Stack, Group, Text, TextInput, NumberInput, 
-    Select, ActionIcon, Box, Collapse, 
+import {
+    Stack, Group, Text, TextInput, NumberInput,
+    Select, ActionIcon, Box, Collapse,
     Badge, ThemeIcon, Button, Modal, Textarea, Input
 } from '@mantine/core';
-import { 
+import {
     IconPlus, IconTrash, IconChevronRight, IconChevronDown
 } from '@tabler/icons-react';
 import type { DefinitionNode } from '../definition/types';
@@ -13,6 +13,7 @@ interface StructuredJsonEditorProps {
     data: any;
     schema: DefinitionNode | null;
     onChange: (newData: any) => void;
+    onFieldFocus?: (fieldName: string) => void;
 }
 
 // Cache for last used values (primitive fields)
@@ -28,20 +29,21 @@ const setCachedValue = (fieldName: string, value: any) => {
         const cache = JSON.parse(localStorage.getItem(EDITOR_CACHE_KEY) || '{}');
         cache[fieldName] = value;
         localStorage.setItem(EDITOR_CACHE_KEY, JSON.stringify(cache));
-    } catch {}
+    } catch { }
 };
 
-function LongTextRenderer({ value, onChange, label, placeholder }: any) {
+function LongTextRenderer({ value, onChange, label, placeholder, onFocus }: any) {
     const [open, setOpen] = useState(false);
     const strVal = String(value || '');
     const isLong = strVal.length > 60;
 
     if (!isLong) {
         return (
-            <TextInput 
-                size="xs" 
-                value={strVal} 
-                onChange={(e) => onChange(e.currentTarget.value)} 
+            <TextInput
+                size="xs"
+                value={strVal}
+                onChange={(e) => onChange(e.currentTarget.value)}
+                onFocus={onFocus}
                 label={label}
                 placeholder={placeholder}
                 style={{ flex: 1 }}
@@ -53,10 +55,10 @@ function LongTextRenderer({ value, onChange, label, placeholder }: any) {
         <>
             <Input.Wrapper label={label} style={{ flex: 1 }}>
                 <Group gap="xs">
-                    <TextInput 
-                        size="xs" 
-                        value={strVal.slice(0, 60) + '...'} 
-                        readOnly 
+                    <TextInput
+                        size="xs"
+                        value={strVal.slice(0, 60) + '...'}
+                        readOnly
                         style={{ flex: 1 }}
                         rightSection={<Badge size="xs" variant="outline" color="gray" style={{ textTransform: 'none' }}>{strVal.length}</Badge>}
                         rightSectionWidth={70}
@@ -99,17 +101,18 @@ const getKind = (node: DefinitionNode): string => {
     return node.type;
 };
 
-export function StructuredJsonEditor({ data, schema, onChange }: StructuredJsonEditorProps) {
+export function StructuredJsonEditor({ data, schema, onChange, onFieldFocus }: StructuredJsonEditorProps) {
     if (!schema) return <Text c="dimmed">No schema definition available</Text>;
-    
+
     return (
         <Box p="xs">
-            <NodeRenderer 
-                node={schema} 
-                value={data} 
-                onChange={onChange} 
-                level={0} 
+            <NodeRenderer
+                node={schema}
+                value={data}
+                onChange={onChange}
+                level={0}
                 path=""
+                onFieldFocus={onFieldFocus}
             />
         </Box>
     );
@@ -123,15 +126,16 @@ interface NodeRendererProps {
     path: string; // For debugging/unique keys
     label?: string; // Override name (e.g. for SEQUENCE OF items)
     isOptionalGhost?: boolean; // If true, render as "addable" ghost
+    onFieldFocus?: (fieldName: string) => void;
 }
 
-function NodeRenderer({ node, value, onChange, level, path, label, isOptionalGhost }: NodeRendererProps) {
+function NodeRenderer({ node, value, onChange, level, path, label, isOptionalGhost, onFieldFocus }: NodeRendererProps) {
     const [expanded, setExpanded] = useState(true);
-    
+
     // Determine name to display
     const fieldName = label || node.name || '<anonymous>';
     const kind = getKind(node);
-    
+
     // Handle "Ghost" state (Optional field not present)
     if (isOptionalGhost) {
         const handleActivate = () => {
@@ -190,9 +194,9 @@ function NodeRenderer({ node, value, onChange, level, path, label, isOptionalGho
 
         return (
             <Box ml={level * 16}>
-                <Group 
-                    mb={4} 
-                    onClick={handleToggle} 
+                <Group
+                    mb={4}
+                    onClick={handleToggle}
                     style={{ cursor: 'pointer', userSelect: 'none' }}
                     gap="xs"
                 >
@@ -202,7 +206,7 @@ function NodeRenderer({ node, value, onChange, level, path, label, isOptionalGho
                     <Text fw={500} size="sm" style={{ pointerEvents: 'none' }}>{fieldName}</Text>
                     {node.type !== 'SEQUENCE' && <Text size="xs" c="dimmed" style={{ pointerEvents: 'none' }}>({node.type})</Text>}
                 </Group>
-                
+
                 <Collapse in={expanded}>
                     {isEmpty ? (
                         <Box ml={8} py={4} style={{ borderLeft: '1px solid var(--mantine-color-default-border)', marginLeft: 7 }}>
@@ -224,6 +228,7 @@ function NodeRenderer({ node, value, onChange, level, path, label, isOptionalGho
                                         level={1} // Relative indentation handled by border/padding
                                         path={`${path}.${childKey}`}
                                         isOptionalGhost={isGhost}
+                                        onFieldFocus={onFieldFocus}
                                     />
                                 );
                             })}
@@ -238,18 +243,18 @@ function NodeRenderer({ node, value, onChange, level, path, label, isOptionalGho
     if (kind === 'SEQUENCE OF') {
         const itemType = node.children?.[0]; // Usually first child defines item type
         const arrValue = Array.isArray(value) ? value : [];
-        
+
         const handleAdd = () => {
-             // Create default item
-             let newItem = null;
-             if (itemType) {
-                 const k = getKind(itemType);
-                 if (k === 'INTEGER') newItem = 0;
-                 else if (k === 'SEQUENCE') newItem = {};
-                 else if (k.includes('STRING')) newItem = '';
-                 // ... simple defaults
-             }
-             onChange([...arrValue, newItem]);
+            // Create default item
+            let newItem = null;
+            if (itemType) {
+                const k = getKind(itemType);
+                if (k === 'INTEGER') newItem = 0;
+                else if (k === 'SEQUENCE') newItem = {};
+                else if (k.includes('STRING')) newItem = '';
+                // ... simple defaults
+            }
+            onChange([...arrValue, newItem]);
         };
 
         const handleRemove = (idx: number) => {
@@ -259,43 +264,44 @@ function NodeRenderer({ node, value, onChange, level, path, label, isOptionalGho
         };
 
         const handleItemChange = (idx: number, val: any) => {
-             const newArr = [...arrValue];
-             newArr[idx] = val;
-             onChange(newArr);
+            const newArr = [...arrValue];
+            newArr[idx] = val;
+            onChange(newArr);
         };
 
         return (
             <Box ml={level * 16}>
-                 <Group mb={4}>
-                    <ThemeIcon variant="transparent" size="xs" c="dimmed" onClick={() => setExpanded(!expanded)} style={{cursor:'pointer'}}>
-                         {expanded ? <IconChevronDown /> : <IconChevronRight />}
+                <Group mb={4}>
+                    <ThemeIcon variant="transparent" size="xs" c="dimmed" onClick={() => setExpanded(!expanded)} style={{ cursor: 'pointer' }}>
+                        {expanded ? <IconChevronDown /> : <IconChevronRight />}
                     </ThemeIcon>
                     <Text fw={500} size="sm">{fieldName}</Text>
                     <Text size="xs" c="dimmed">[{arrValue.length}]</Text>
-                    <ActionIcon size="xs" variant="subtle" onClick={handleAdd} aria-label="Add item"><IconPlus size="0.8rem"/></ActionIcon>
+                    <ActionIcon size="xs" variant="subtle" onClick={handleAdd} aria-label="Add item"><IconPlus size="0.8rem" /></ActionIcon>
                 </Group>
                 <Collapse in={expanded}>
-                     <Stack gap={2} style={{ borderLeft: '1px solid var(--mantine-color-default-border)', marginLeft: 7 }}>
-                         {arrValue.map((item: any, idx: number) => (
-                             <Group key={idx} align="flex-start" wrap="nowrap">
-                                 <Box style={{ flex: 1 }}>
-                                     {itemType ? (
-                                         <NodeRenderer
-                                             node={itemType}
-                                             value={item}
-                                             onChange={(v) => handleItemChange(idx, v)}
-                                             level={1}
-                                             path={`${path}[${idx}]`}
-                                             label={`Item ${idx + 1}`}
-                                         />
-                                     ) : <Text size="xs" c="red">Unknown Item Type</Text>}
+                    <Stack gap={2} style={{ borderLeft: '1px solid var(--mantine-color-default-border)', marginLeft: 7 }}>
+                        {arrValue.map((item: any, idx: number) => (
+                            <Group key={idx} align="flex-start" wrap="nowrap">
+                                <Box style={{ flex: 1 }}>
+                                    {itemType ? (
+                                        <NodeRenderer
+                                            node={itemType}
+                                            value={item}
+                                            onChange={(v) => handleItemChange(idx, v)}
+                                            level={1}
+                                            path={`${path}[${idx}]`}
+                                            label={`Item ${idx + 1}`}
+                                            onFieldFocus={onFieldFocus}
+                                        />
+                                    ) : <Text size="xs" c="red">Unknown Item Type</Text>}
                                 </Box>
                                 <ActionIcon color="red" variant="subtle" size="xs" mt={4} onClick={() => handleRemove(idx)} aria-label="Remove item">
-                                    <IconTrash size="0.8rem"/>
+                                    <IconTrash size="0.8rem" />
                                 </ActionIcon>
                             </Group>
-                         ))}
-                     </Stack>
+                        ))}
+                    </Stack>
                 </Collapse>
             </Box>
         );
@@ -307,32 +313,32 @@ function NodeRenderer({ node, value, onChange, level, path, label, isOptionalGho
         // In JSON, choice is often { "choiceName": value } or just the value if implicit?
         // asn1tools usually outputs { "choiceName": value } for JSON.
         // Let's assume { key: value } with exactly one key.
-        
+
         const currentKey = value && typeof value === 'object' && !Array.isArray(value) ? Object.keys(value)[0] : null;
         const currentData = currentKey && value ? value[currentKey] : null;
-        
+
         // Find the active child node
         const activeChild = options.find(c => c.name === currentKey);
 
         const handleChoiceChange = (newKey: string) => {
-             if (newKey === currentKey) return;
-             // Reset value to default for new type
-             // For now just empty object or null
-             onChange({ [newKey]: null }); // Inner renderer will initialize default
+            if (newKey === currentKey) return;
+            // Reset value to default for new type
+            // For now just empty object or null
+            onChange({ [newKey]: null }); // Inner renderer will initialize default
         };
 
         const handleInnerChange = (val: any) => {
-             if (currentKey) {
-                 onChange({ [currentKey]: val });
-             }
+            if (currentKey) {
+                onChange({ [currentKey]: val });
+            }
         }
 
         return (
             <Box ml={level * 16}>
                 <Group mb={4} gap="xs">
                     <Text fw={500} size="sm">{fieldName}</Text>
-                    <Select 
-                        size="xs" 
+                    <Select
+                        size="xs"
                         data={options.map(c => ({ value: c.name || '', label: c.name || '' }))}
                         value={currentKey || ''}
                         onChange={(v) => v && handleChoiceChange(v)}
@@ -350,6 +356,7 @@ function NodeRenderer({ node, value, onChange, level, path, label, isOptionalGho
                             level={1}
                             path={`${path}.${currentKey}`}
                             label="" // Hide label since key is selected above
+                            onFieldFocus={onFieldFocus}
                         />
                     </Box>
                 )}
@@ -368,7 +375,7 @@ function NodeRenderer({ node, value, onChange, level, path, label, isOptionalGho
         <Group gap="xs" mb={2} style={{ minWidth: 150 }}>
             <Text size="sm">{fieldName}</Text>
             <Text size="xs" c="dimmed">({node.type})</Text>
-            {node.optional && <ActionIcon size="xs" color="red" variant="subtle" onClick={() => onChange(undefined)} aria-label="Remove field"><IconTrash size="0.7rem"/></ActionIcon>}
+            {node.optional && <ActionIcon size="xs" color="red" variant="subtle" onClick={() => onChange(undefined)} aria-label="Remove field"><IconTrash size="0.7rem" /></ActionIcon>}
         </Group>
     );
 
@@ -377,29 +384,38 @@ function NodeRenderer({ node, value, onChange, level, path, label, isOptionalGho
         const isTuple = Array.isArray(value);
         const hexVal = isTuple ? value[0] : (typeof value === 'string' ? value : '');
         const isOctetString = kind === 'OCTET STRING';
-        
+
         // For OctetString: read-only byte length
         // For BitString: editable bit length
         const cleanHex = hexVal.replace(/^0x/i, '');
-        const displayedLen = isOctetString 
-             ? Math.ceil(cleanHex.length / 2) // Bytes (ceil for safety on partials)
-             : (isTuple ? value[1] : (cleanHex.length * 4)); // Bits
+        const displayedLen = isOctetString
+            ? Math.ceil(cleanHex.length / 2) // Bytes (ceil for safety on partials)
+            : (isTuple ? value[1] : (cleanHex.length * 4)); // Bits
 
         return (
-             <Box ml={level * 16} mb={4}>
-                 <Label />
-                 <Group gap="xs" align="flex-end">
-                     <LongTextRenderer 
-                         label="Hex Value"
-                         placeholder="0x..." 
-                         value={hexVal} 
-                         onChange={(val: string) => {
-                             const clean = val.replace(/^0x/i, '');
-                             const newBitLen = clean.length * 4;
-                             handlePrimitiveChange([val, newBitLen]);
-                         }}
-                     />
-                     <NumberInput
+            <Box ml={level * 16} mb={4}>
+                <Label />
+                <Group gap="xs" align="flex-end">
+                    <LongTextRenderer
+                        label="Hex Value"
+                        placeholder="0x..."
+                        value={hexVal}
+                        onChange={(val: string) => {
+                            // Validate hex characters (0-9, a-f, A-F)
+                            // Allow 0x prefix, but rest must be hex
+                            const isHex = /^0x[0-9a-fA-F]*$/i.test(val) || /^[0-9a-fA-F]*$/i.test(val);
+
+                            if (isHex) {
+                                const clean = val.replace(/^0x/i, '');
+                                const newBitLen = clean.length * 4;
+                                handlePrimitiveChange([val, newBitLen]);
+                            }
+                            // Note: We effectively just ignore non-hex input (it won't update state)
+                            // This is strict input masking
+                        }}
+                        onFocus={() => onFieldFocus?.(node.name || '')}
+                    />
+                    <NumberInput
                         label={isOctetString ? "Bytes" : "Bits"}
                         placeholder={isOctetString ? "Bytes" : "Bits"}
                         size="xs"
@@ -410,12 +426,13 @@ function NodeRenderer({ node, value, onChange, level, path, label, isOptionalGho
                             }
                         }}
                         style={{ width: 80 }}
+                        onFocus={() => onFieldFocus?.(node.name || '')}
                         min={0}
                         readOnly={isOctetString}
                         variant={isOctetString ? "filled" : "default"}
-                     />
-                 </Group>
-             </Box>
+                    />
+                </Group>
+            </Box>
         );
     }
 
@@ -423,10 +440,11 @@ function NodeRenderer({ node, value, onChange, level, path, label, isOptionalGho
         return (
             <Box ml={level * 16} mb={4}>
                 <Label />
-                <NumberInput 
-                    size="xs" 
-                    value={Number(value) || 0} 
+                <NumberInput
+                    size="xs"
+                    value={Number(value) || 0}
                     onChange={(v) => handlePrimitiveChange(Number(v))}
+                    onFocus={() => onFieldFocus?.(node.name || '')}
                 />
             </Box>
         );
@@ -441,35 +459,38 @@ function NodeRenderer({ node, value, onChange, level, path, label, isOptionalGho
                     data={['true', 'false']}
                     value={value ? 'true' : 'false'}
                     onChange={(val) => handlePrimitiveChange(val === 'true')}
+                    onFocus={() => onFieldFocus?.(node.name || '')}
                     allowDeselect={false}
                 />
             </Box>
         );
     }
-    
+
     if (kind === 'ENUMERATED') {
         const choices = (node.constraints?.choices || []) as string[];
-        
+
         return (
-             <Box ml={level * 16} mb={4}>
-                 <Label />
-                 {choices.length > 0 ? (
-                     <Select
-                         size="xs"
-                         data={choices}
-                         value={value ? String(value) : null}
-                         onChange={(val) => handlePrimitiveChange(val)}
-                         searchable
-                         clearable={node.optional}
-                         placeholder="Select value"
-                     />
-                 ) : (
-                     <LongTextRenderer 
-                         value={String(value || '')} 
-                         onChange={(val: string) => handlePrimitiveChange(val)}
-                     />
-                 )}
-             </Box>
+            <Box ml={level * 16} mb={4}>
+                <Label />
+                {choices.length > 0 ? (
+                    <Select
+                        size="xs"
+                        data={choices}
+                        value={value ? String(value) : null}
+                        onChange={(val) => handlePrimitiveChange(val)}
+                        onFocus={() => onFieldFocus?.(node.name || '')}
+                        searchable
+                        clearable={node.optional}
+                        placeholder="Select value"
+                    />
+                ) : (
+                    <LongTextRenderer
+                        value={String(value || '')}
+                        onChange={(val: string) => handlePrimitiveChange(val)}
+                        onFocus={() => onFieldFocus?.(node.name || '')}
+                    />
+                )}
+            </Box>
         );
     }
 
@@ -477,9 +498,10 @@ function NodeRenderer({ node, value, onChange, level, path, label, isOptionalGho
     return (
         <Box ml={level * 16} mb={4}>
             <Label />
-            <LongTextRenderer 
-                value={typeof value === 'string' ? value : JSON.stringify(value)} 
-                onChange={(val: string) => handlePrimitiveChange(val)} 
+            <LongTextRenderer
+                value={typeof value === 'string' ? value : JSON.stringify(value)}
+                onChange={(val: string) => handlePrimitiveChange(val)}
+                onFocus={() => onFieldFocus?.(node.name || '')}
             />
         </Box>
     );

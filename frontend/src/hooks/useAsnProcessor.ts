@@ -9,6 +9,7 @@ import type { DefinitionNode } from '../components/definition/types';
 import type { TraceResponsePayload } from '../components/trace/types';
 import type { DemoEntry } from '../data/demos';
 import { demoPayloads, demoErrorPayloads } from '../data/demos';
+import { useSession } from './useSession';
 
 export type DemoOption = ComboboxItem | ComboboxItemGroup;
 
@@ -19,6 +20,7 @@ export const useAsnProcessor = () => {
     const [demoTypeOptions, setDemoTypeOptions] = useState<DemoOption[]>([]);
     const [selectedDemoOption, setSelectedDemoOption] = useState<string | null>(null);
     const [selectedType, setSelectedType] = useState<string | null>(null);
+    const [loadedMessageName, setLoadedMessageName] = useState<string | null>(null);
     const [dynamicExamples, setDynamicExamples] = useState<Record<string, any>>({});
     const [definitionTree, setDefinitionTree] = useState<DefinitionNode | null>(null);
 
@@ -41,6 +43,8 @@ export const useAsnProcessor = () => {
     const [refreshTrigger, setRefreshTrigger] = useState(0);
     const [savedTrigger, setSavedTrigger] = useState(0);
 
+    const { currentSessionId } = useSession();
+
     const refreshDefinitions = useCallback(() => {
         setRefreshTrigger(prev => prev + 1);
     }, []);
@@ -60,20 +64,20 @@ export const useAsnProcessor = () => {
     }, []);
 
     useEffect(() => {
-        AsnService.listSavedMessages().then(setSavedMessages).catch(console.error);
-    }, [savedTrigger]);
+        AsnService.listSavedMessages(currentSessionId).then(setSavedMessages).catch(console.error);
+    }, [savedTrigger, currentSessionId]);
 
     useEffect(() => {
         if (!selectedProtocol) {
-            const savedItems = savedMessages.map(msg => ({ 
-                value: `saved::${msg}`, label: msg 
+            const savedItems = savedMessages.map(msg => ({
+                value: `saved::${msg}`, label: msg
             }));
             if (savedItems.length > 0) {
                 setDemoTypeOptions([{ group: 'Saved Messages', items: savedItems }]);
             } else {
                 setDemoTypeOptions([]);
             }
-            
+
             if (!selectedProtocol) {
                 setDynamicExamples({});
             }
@@ -86,10 +90,10 @@ export const useAsnProcessor = () => {
         ]).then(([types, examples]) => {
             setDynamicExamples(examples);
             const options: DemoOption[] = [];
-            
+
             // Saved Messages
-            const savedItems = savedMessages.map(msg => ({ 
-                value: `saved::${msg}`, label: msg 
+            const savedItems = savedMessages.map(msg => ({
+                value: `saved::${msg}`, label: msg
             }));
             if (savedItems.length > 0) {
                 options.push({ group: 'Saved Messages', items: savedItems });
@@ -97,7 +101,7 @@ export const useAsnProcessor = () => {
 
             // Demos
             const demosItems: ComboboxItem[] = [];
-            
+
             types.forEach(typeName => {
                 if (demoPayloads[selectedProtocol]?.[typeName]) {
                     demosItems.push({ value: `${typeName}::valid`, label: `${typeName} (Valid Demo)` });
@@ -109,7 +113,7 @@ export const useAsnProcessor = () => {
                     demosItems.push({ value: `${typeName}::error::${idx}`, label: `${typeName} (Error Demo #${idx + 1})` });
                 });
             });
-            
+
             if (demosItems.length > 0) {
                 options.push({ group: 'Demos', items: demosItems });
             } else if (types.length > 0) {
@@ -118,7 +122,7 @@ export const useAsnProcessor = () => {
                 const typeItems = types.map(t => ({ value: t, label: t }));
                 options.push({ group: 'Types', items: typeItems });
             }
-            
+
             setDemoTypeOptions(options);
         }).catch(console.error);
     }, [selectedProtocol, refreshTrigger, savedMessages]);
@@ -167,10 +171,10 @@ export const useAsnProcessor = () => {
                 setError(res.diagnostics || res.error || 'Decode failed');
                 return;
             }
-            
+
             setError(null);
             setJsonData(JSON.stringify(res.data ?? res, null, 2));
-            
+
             const resolvedType = selectedType || res.decoded_type;
             if (resolvedType) {
                 await fetchTrace(selectedProtocol, resolvedType, currentHex);
@@ -188,23 +192,23 @@ export const useAsnProcessor = () => {
         if (!selectedProtocol || !selectedType) return;
         const currentJson = jsonOverride ?? jsonData;
         if (!currentJson.trim()) return;
-        
+
         setLoading(true);
         try {
             let parsed;
             try { parsed = JSON.parse(currentJson); } catch { setError("Invalid JSON"); return; }
-            
+
             const res = await AsnService.encode(selectedProtocol, selectedType, parsed);
             if (res.status === 'failure') {
                 setError(res.diagnostics || res.error || 'Encode failed');
                 return;
             }
-            
+
             setError(null);
             const newHex = res.hex_data || '';
             setHexData(newHex);
             setFormattedHex(hexTo0xHex(newHex));
-            
+
             await fetchTrace(selectedProtocol, selectedType, newHex);
         } catch (err) {
             setError(formatErrorMessage(err));
@@ -228,54 +232,62 @@ export const useAsnProcessor = () => {
             setJsonData('');
             setError(null);
             setTraceError(null);
+            setLoadedMessageName(null);
             return;
         }
         const parts = value.split('::');
         const mode = parts[0];
 
         if (mode === 'saved') {
-             const filename = parts[1];
-             setLoading(true);
-             AsnService.loadMessage(filename).then(msg => {
-                 if (msg.protocol !== selectedProtocol) {
-                     setSelectedProtocol(msg.protocol);
-                 }
-                 setSelectedType(msg.type);
-                 setJsonData(JSON.stringify(msg.data, null, 2));
-                 setLastEdited('json');
-                 setError(null);
-                 setTraceError(null);
-             }).catch(err => {
-                 setError("Failed to load message: " + (err.response?.data?.detail || err.message));
-                 setTraceError(null);
-             }).finally(() => setLoading(false));
-             return;
+            const filename = parts[1];
+            setLoading(true);
+            AsnService.loadMessage(filename, currentSessionId).then(msg => {
+                // Set protocol and type from loaded message
+                setSelectedProtocol(msg.protocol);
+                setSelectedType(msg.type);
+                setJsonData(JSON.stringify(msg.data, null, 2));
+                setLastEdited('json');
+                setError(null);
+                setTraceError(null);
+                // Track the loaded filename (without .json for display)
+                setLoadedMessageName(filename.replace(/\.json$/, ''));
+                // Set the dropdown to show the ASN message type
+                setSelectedDemoOption(msg.type);
+            }).catch(err => {
+                setError("Failed to load message: " + (err.response?.data?.detail || err.message));
+                setTraceError(null);
+                setLoadedMessageName(null);
+            }).finally(() => setLoading(false));
+            return;
         }
+
+        // Not a saved message - clear loaded name
+        setLoadedMessageName(null);
 
         const typeName = parts[0];
         setSelectedType(typeName);
-        
+
         if (selectedProtocol && parts.length > 1) {
-             const [, variant, errorIndex] = parts;
-             let example: DemoEntry | undefined;
-             if (variant === 'error') {
-                 example = demoErrorPayloads[selectedProtocol]?.[typeName]?.[Number(errorIndex)];
-             } else if (variant === 'dynamic') {
-                 example = dynamicExamples[typeName];
-             } else {
-                 example = demoPayloads[selectedProtocol]?.[typeName];
-             }
-             
-             if (example) {
-                 setJsonData(JSON.stringify(example, null, 2));
-                 setLastEdited('json');
-                 setError(null);
-                 setTraceError(null);
-             } else {
-                 setJsonData('');
-                 setError(null);
-                 setTraceError(null);
-             }
+            const [, variant, errorIndex] = parts;
+            let example: DemoEntry | undefined;
+            if (variant === 'error') {
+                example = demoErrorPayloads[selectedProtocol]?.[typeName]?.[Number(errorIndex)];
+            } else if (variant === 'dynamic') {
+                example = dynamicExamples[typeName];
+            } else {
+                example = demoPayloads[selectedProtocol]?.[typeName];
+            }
+
+            if (example) {
+                setJsonData(JSON.stringify(example, null, 2));
+                setLastEdited('json');
+                setError(null);
+                setTraceError(null);
+            } else {
+                setJsonData('');
+                setError(null);
+                setTraceError(null);
+            }
         } else {
             setJsonData('');
             setError(null);
@@ -287,7 +299,7 @@ export const useAsnProcessor = () => {
         if (!selectedProtocol || !selectedType || !jsonData) return false;
         try {
             const parsed = JSON.parse(jsonData);
-            await AsnService.saveMessage(filename, selectedProtocol, selectedType, parsed);
+            await AsnService.saveMessage(filename, selectedProtocol, selectedType, parsed, currentSessionId);
             refreshSavedMessages();
             return true;
         } catch (e: any) {
@@ -298,7 +310,7 @@ export const useAsnProcessor = () => {
 
     const handleDeleteMessage = async (filename: string) => {
         try {
-            await AsnService.deleteMessage(filename);
+            await AsnService.deleteMessage(filename, currentSessionId);
             refreshSavedMessages();
             if (selectedDemoOption === `saved::${filename}`) {
                 setSelectedDemoOption(null);
@@ -312,7 +324,7 @@ export const useAsnProcessor = () => {
     const handleClearMessages = async () => {
         if (!confirm("Delete all saved messages?")) return;
         try {
-            await AsnService.clearMessages();
+            await AsnService.clearMessages(currentSessionId);
             refreshSavedMessages();
             if (selectedDemoOption?.startsWith('saved::')) {
                 setSelectedDemoOption(null);
@@ -344,18 +356,18 @@ export const useAsnProcessor = () => {
             downloadBlob(blob, `${selectedProtocol}_c_stubs.zip`);
             return true;
         } catch (err: any) {
-             if (err.response?.data instanceof Blob) {
-                 const text = await err.response.data.text();
-                 try {
-                     const json = JSON.parse(text);
-                     setCodegenError(json.detail || 'Generation failed');
-                 } catch {
-                     setCodegenError(text);
-                 }
-             } else {
-                 setCodegenError(formatErrorMessage(err));
-             }
-             return false;
+            if (err.response?.data instanceof Blob) {
+                const text = await err.response.data.text();
+                try {
+                    const json = JSON.parse(text);
+                    setCodegenError(json.detail || 'Generation failed');
+                } catch {
+                    setCodegenError(text);
+                }
+            } else {
+                setCodegenError(formatErrorMessage(err));
+            }
+            return false;
         } finally {
             setCodegenLoading(false);
         }
@@ -388,7 +400,8 @@ export const useAsnProcessor = () => {
         handleDecode, handleEncode, loadExample,
         codegenLoading, codegenError, handleCodegen,
         refreshDefinitions,
-        savedMessages, handleSaveMessage, handleDeleteMessage, handleClearMessages
+        savedMessages, handleSaveMessage, handleDeleteMessage, handleClearMessages,
+        loadedMessageName
     };
 };
 

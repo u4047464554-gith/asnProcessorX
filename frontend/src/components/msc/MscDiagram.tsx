@@ -1,14 +1,11 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { Paper, Text, Group, Badge, ActionIcon, Tooltip } from '@mantine/core';
-import { 
-  IconChevronDown, 
-  IconChevronRight, 
-  IconCircleDot, 
-  IconAlertCircle, 
-  IconCheck,
+import {
+  IconCircleDot,
+  IconAlertCircle,
   IconCopy
 } from '@tabler/icons-react';
-import type { MscSequence, MscMessage, ValidationResult } from '../../domain/msc/types';
+import type { MscSequence, MscMessage } from '../../domain/msc/types';
 
 interface MscDiagramProps {
   sequence: MscSequence | null;
@@ -37,14 +34,14 @@ export const MscDiagram: React.FC<MscDiagramProps> = ({
   showValidation = true,
   collapsible = true
 }) => {
-  const [expandedSubSequences, setExpandedSubSequences] = useState<Set<string>>(new Set());
+
   const [diagramWidth, setDiagramWidth] = useState(800);
-  
+
   // Actor positions
   const actors = useMemo(() => {
     if (!sequence) return [];
     const actorSet = new Set<string>();
-    
+
     sequence.messages.forEach(msg => {
       // Handle both camelCase and snake_case naming
       const sourceActor = msg.sourceActor || msg.source_actor || 'UE';
@@ -52,17 +49,17 @@ export const MscDiagram: React.FC<MscDiagramProps> = ({
       actorSet.add(sourceActor);
       actorSet.add(targetActor);
     });
-    
+
     return Array.from(actorSet).sort();
   }, [sequence]);
-  
+
   const actorPositions = useMemo(() => {
     return actors.reduce((acc, actor, index) => {
       acc[actor] = DIAGRAM_MARGIN + (index * ACTOR_WIDTH) + (ACTOR_WIDTH / 2);
       return acc;
     }, {} as Record<string, number>);
   }, [actors]);
-  
+
   // Calculate diagram dimensions
   useEffect(() => {
     if (sequence && actors.length > 0) {
@@ -70,19 +67,8 @@ export const MscDiagram: React.FC<MscDiagramProps> = ({
       setDiagramWidth(maxX + DIAGRAM_MARGIN + 100); // Extra space for labels
     }
   }, [actorPositions, sequence, actors.length]);
-  
-  const toggleSubSequence = (subSequenceId: string) => {
-    setExpandedSubSequences(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(subSequenceId)) {
-        newSet.delete(subSequenceId);
-      } else {
-        newSet.add(subSequenceId);
-      }
-      return newSet;
-    });
-  };
-  
+
+
   if (!sequence) {
     return (
       <Paper p="md" withBorder>
@@ -90,11 +76,11 @@ export const MscDiagram: React.FC<MscDiagramProps> = ({
       </Paper>
     );
   }
-  
+
   const renderActor = (actor: string, y: number) => {
     const x = actorPositions[actor];
     const color = ACTOR_COLORS[actor as keyof typeof ACTOR_COLORS] || '#6b7280';
-    
+
     return (
       <g key={actor}>
         {/* Actor line */}
@@ -107,7 +93,7 @@ export const MscDiagram: React.FC<MscDiagramProps> = ({
           strokeWidth="2"
           strokeDasharray={actor === 'UE' ? "5,5" : undefined}
         />
-        
+
         {/* Actor label */}
         <g transform={`translate(${x - 30}, ${y})`}>
           <rect
@@ -133,7 +119,7 @@ export const MscDiagram: React.FC<MscDiagramProps> = ({
       </g>
     );
   };
-  
+
   const renderMessage = (message: MscMessage, index: number, y: number, depth: number = 0) => {
     // Handle both camelCase and snake_case naming
     const sourceActor = message.sourceActor || message.source_actor || 'UE';
@@ -143,13 +129,13 @@ export const MscDiagram: React.FC<MscDiagramProps> = ({
     const isSelected = selectedMessageIndex === index;
     const hasErrors = message.validationErrors?.some(e => e.type === 'error');
     const hasWarnings = message.validationErrors?.some(e => e.type === 'warning');
-    
+
     // Adjust y position for nesting depth
     const adjustedY = y + (depth * 20);
-    
+
     let strokeColor = '#64748b';
     let strokeWidth = 2;
-    
+
     if (isSelected) {
       strokeColor = '#3b82f6';
       strokeWidth = 3;
@@ -160,7 +146,7 @@ export const MscDiagram: React.FC<MscDiagramProps> = ({
       strokeColor = '#f59e0b';
       strokeWidth = 2.5;
     }
-    
+
     return (
       <g key={`${message.id}-${depth}`}>
         {/* Message arrow */}
@@ -175,7 +161,7 @@ export const MscDiagram: React.FC<MscDiagramProps> = ({
           onClick={() => onMessageSelect?.(index)}
           style={{ cursor: 'pointer' }}
         />
-        
+
         {/* Arrowhead */}
         <defs>
           <marker
@@ -190,12 +176,12 @@ export const MscDiagram: React.FC<MscDiagramProps> = ({
             <polygon points="0 0, 10 3.5, 0 7" fill={strokeColor} />
           </marker>
         </defs>
-        
+
         {/* Message label */}
         <g transform={`translate(${(sourceX + targetX) / 2}, ${adjustedY - 10})`}>
           <foreignObject width="200" height="30">
-            <div style={{ 
-              padding: '4px 8px', 
+            <div style={{
+              padding: '4px 8px',
               background: isSelected ? '#eff6ff' : '#f8fafc',
               borderRadius: '4px',
               border: `1px solid ${strokeColor}`,
@@ -213,11 +199,11 @@ export const MscDiagram: React.FC<MscDiagramProps> = ({
             </div>
           </foreignObject>
         </g>
-        
+
         {/* Validation indicators */}
         {showValidation && (hasErrors || hasWarnings) && (
           <g transform={`translate(${targetX + 10}, ${adjustedY})`}>
-            <Tooltip 
+            <Tooltip
               label={message.validationErrors?.map(e => `${e.type}: ${e.message}`).join('\n') || ''}
               withArrow
               position="right"
@@ -229,7 +215,7 @@ export const MscDiagram: React.FC<MscDiagramProps> = ({
             </Tooltip>
           </g>
         )}
-        
+
         {/* Timestamp label */}
         <text
           x={targetX + 15}
@@ -243,81 +229,25 @@ export const MscDiagram: React.FC<MscDiagramProps> = ({
       </g>
     );
   };
-  
-  const renderSubSequence = (subSequence: MscSequence, startY: number, depth: number) => {
-    const subId = subSequence.id;
-    const isExpanded = expandedSubSequences.has(subId);
-    const subMessages = subSequence.messages;
-    
-    return (
-      <g key={`sub-${subId}`}>
-        {/* Sub-sequence boundary */}
-        <rect
-          x={DIAGRAM_MARGIN - 10}
-          y={startY - 10}
-          width={diagramWidth - 2 * DIAGRAM_MARGIN + 20}
-          height={MESSAGE_HEIGHT * (subMessages.length + 1) + 20}
-          fill="none"
-          stroke="#e2e8f0"
-          strokeDasharray="5,5"
-          strokeWidth="1"
-          rx="4"
-          opacity={0.7}
-        />
-        
-        {/* Sub-sequence header */}
-        <g transform={`translate(${DIAGRAM_MARGIN}, ${startY - 5})`}>
-          <rect
-            x="0"
-            y="0"
-            width="200"
-            height="25"
-            fill="#f1f5f9"
-            stroke="#cbd5e1"
-            rx="4"
-          />
-          <Group>
-            <text x="8" y="17" fontSize="12" fontWeight="600" fill="#475569">
-              Sub-sequence: {subSequence.name}
-            </text>
-            <ActionIcon
-              size="xs"
-              variant="transparent"
-              onClick={() => toggleSubSequence(subId)}
-              style={{ cursor: 'pointer' }}
-            >
-              {isExpanded ? <IconChevronDown size={12} /> : <IconChevronRight size={12} />}
-            </ActionIcon>
-          </Group>
-        </g>
-        
-        {/* Render sub-sequence messages if expanded */}
-        {isExpanded && subMessages.map((message, index) => {
-          const messageY = startY + MESSAGE_HEIGHT * (index + 1);
-          return renderMessage(message, index, messageY, depth + 1);
-        })}
-      </g>
-    );
-  };
-  
+
   const renderSequence = useMemo(() => {
     if (!sequence) return null;
-    
+
     let currentY = DIAGRAM_MARGIN;
     const elements = [];
-    
+
     // Render actors
     actors.forEach(actor => {
       elements.push(renderActor(actor, currentY));
     });
-    
+
     // Render main messages
     sequence.messages.forEach((message, index) => {
       const messageY = currentY + MESSAGE_HEIGHT;
       elements.push(renderMessage(message, index, messageY, 0));
       currentY = messageY;
     });
-    
+
     // Render sub-sequences (simplified - would need proper positioning)
     // For now, just placeholder
     if (sequence.subSequences.length > 0) {
@@ -331,10 +261,10 @@ export const MscDiagram: React.FC<MscDiagramProps> = ({
       );
       currentY += MESSAGE_HEIGHT;
     }
-    
+
     return elements;
-  }, [sequence, actors, actorPositions, diagramWidth, height, selectedMessageIndex, onMessageSelect, showValidation, collapsible, expandedSubSequences]);
-  
+  }, [sequence, actors, actorPositions, diagramWidth, height, selectedMessageIndex, onMessageSelect, showValidation, collapsible]);
+
   return (
     <Paper withBorder p="md" style={{ height, overflow: 'auto' }}>
       <Group justify="space-between" mb="sm">
@@ -343,7 +273,7 @@ export const MscDiagram: React.FC<MscDiagramProps> = ({
         </Text>
         <Group>
           <Badge variant="light" color={sequence?.validationResults?.some(r => r.type === 'error') ? 'red' : 'green'}>
-            {sequence?.validationResults?.filter(r => r.type === 'error').length || 0} Errors | 
+            {sequence?.validationResults?.filter(r => r.type === 'error').length || 0} Errors |
             {sequence?.validationResults?.filter(r => r.type === 'warning').length || 0} Warnings
           </Badge>
           <Text size="sm" c="dimmed">
@@ -351,7 +281,7 @@ export const MscDiagram: React.FC<MscDiagramProps> = ({
           </Text>
         </Group>
       </Group>
-      
+
       <div style={{ position: 'relative', width: '100%', height: height - 100 }}>
         <svg
           width={diagramWidth}
@@ -362,11 +292,11 @@ export const MscDiagram: React.FC<MscDiagramProps> = ({
           {/* Background grid */}
           <defs>
             <pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse">
-              <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#f1f5f9" strokeWidth="0.5"/>
+              <path d="M 20 0 L 0 0 0 20" fill="none" stroke="#f1f5f9" strokeWidth="0.5" />
             </pattern>
           </defs>
           <rect width="100%" height="100%" fill="url(#grid)" />
-          
+
           {/* Timeline */}
           <line
             x1={DIAGRAM_MARGIN}
@@ -377,7 +307,7 @@ export const MscDiagram: React.FC<MscDiagramProps> = ({
             strokeWidth="1"
             strokeDasharray="3,3"
           />
-          
+
           {/* Time labels */}
           {[0, 5, 10, 15, 20].map((time, index) => (
             <g key={index}>
@@ -400,10 +330,10 @@ export const MscDiagram: React.FC<MscDiagramProps> = ({
               </text>
             </g>
           ))}
-          
+
           {/* Render sequence elements */}
           {renderSequence}
-          
+
           {/* Legend */}
           <g transform={`translate(${diagramWidth - 200}, 20)`}>
             <text x="0" y="0" fontSize="10" fill="#64748b" fontWeight="600">
@@ -424,11 +354,11 @@ export const MscDiagram: React.FC<MscDiagramProps> = ({
           </g>
         </svg>
       </div>
-      
+
       {/* Sequence info panel */}
       {sequence && (
         <Paper withBorder p="sm" mt="md">
-          <Group justify="apart">
+          <Group justify="space-between">
             <div>
               <Text size="sm" c="dimmed">Protocol: {sequence.protocol}</Text>
               <Text size="sm" c="dimmed">Created: {new Date(sequence.createdAt).toLocaleString()}</Text>
@@ -436,12 +366,12 @@ export const MscDiagram: React.FC<MscDiagramProps> = ({
             </div>
             <Group>
               {sequence.validationResults?.length > 0 && (
-                <Tooltip 
+                <Tooltip
                   label={sequence.validationResults.map(r => `${r.type}: ${r.message}`).join('\n')}
                   multiline
-                  width={300}
+                  w={300}
                 >
-                  <Badge 
+                  <Badge
                     color={sequence.validationResults.some(r => r.type === 'error') ? 'red' : 'yellow'}
                     variant="filled"
                   >

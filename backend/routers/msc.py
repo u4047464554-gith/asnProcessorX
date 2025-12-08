@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel, Field, ConfigDict
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Union
 from uuid import UUID
 
 from backend.application.msc.services import (
@@ -38,12 +38,13 @@ class CreateSequenceRequest(BaseModel):
 
 class UpdateSequenceRequest(BaseModel):
     name: Optional[str] = None
-    add_message: Optional[Dict[str, Any]] = None
+    add_message: Optional[Any] = None
     remove_message: Optional[str] = None  # message ID
+    update_message: Optional[Any] = None # {id: str, data: dict/list}
 
 class AddMessageRequest(BaseModel):
     type_name: str
-    data: Dict[str, Any]
+    data: Any
     source_actor: str = "UE"
     target_actor: str = "gNB"
 
@@ -65,7 +66,7 @@ class ValidationIssueResponse(CamelModel):
 class MessageResponse(CamelModel):
     id: str
     type_name: str
-    data: Dict[str, Any]
+    data: Any
     source_actor: str
     target_actor: str
     timestamp: float
@@ -81,6 +82,7 @@ class SequenceResponse(CamelModel):
     id: str
     name: str
     protocol: str
+    session_id: Optional[str] = None
     messages: List[MessageResponse]
     sub_sequences: List[Dict[str, Any]] = Field(default_factory=list)
     configurations: Dict[str, TrackedIdentifierResponse] = Field(default_factory=dict)
@@ -114,6 +116,7 @@ def build_sequence_response(dto: SequenceDTO) -> SequenceResponse:
         id=dto.id,
         name=dto.name,
         protocol=dto.protocol,
+        session_id=getattr(dto, 'session_id', None),
         messages=[MessageResponse(**msg) for msg in dto.messages],
         sub_sequences=dto.sub_sequences,
         configurations={
@@ -173,6 +176,9 @@ async def update_sequence(
         if request.remove_message is not None:
             updates['remove_message'] = request.remove_message
         
+        if request.update_message is not None:
+            updates['update_message'] = request.update_message
+        
         dto = msc_service.update_sequence(sequence_id, updates)
         if not dto:
             raise HTTPException(status_code=404, detail="Sequence not found")
@@ -217,10 +223,16 @@ async def add_message_to_sequence(
         dto = msc_service.add_message_to_sequence(sequence_id, message_data)
         # Convert DTO to Pydantic model
         return build_sequence_response(dto)
+    except ValueError as e:
+        # Sequence not found
+        if "not found" in str(e).lower():
+            raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=400, detail=f"Failed to add message: {str(e)}")
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Failed to add message: {str(e)}")
+
 
 @router.post("/sequences/{sequence_id}/validate", response_model=ValidationResponseModel)
 async def validate_sequence(

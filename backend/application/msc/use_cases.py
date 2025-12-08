@@ -23,13 +23,14 @@ class CreateSequenceUseCase:
     def __init__(self, repository: IMscRepository):
         self.repository = repository
     
-    def execute(self, name: str, protocol: str) -> MscSequence:
+    def execute(self, name: str, protocol: str, session_id: Optional[str] = None) -> MscSequence:
         """
         Create a new MSC sequence.
         
         Args:
             name: Sequence name
             protocol: Protocol name (e.g., 'rrc_demo')
+            session_id: Optional session ID to associate with
         
         Returns:
             Created MscSequence
@@ -41,7 +42,8 @@ class CreateSequenceUseCase:
             messages=[],
             sub_sequences=[],
             tracked_identifiers={},
-            validation_results=[]
+            validation_results=[],
+            session_id=session_id
         )
         return self.repository.create_sequence(sequence)
 
@@ -84,6 +86,13 @@ class UpdateSequenceUseCase:
         
         if 'remove_message' in updates:
             sequence.remove_message(updates['remove_message'])
+            
+        if 'update_message' in updates:
+            msg_data = updates['update_message']
+            if 'id' in msg_data:
+                # Update data if present, preserving other fields is handled by entity logic if needed, 
+                # but update_data replaces data dict.
+                sequence.update_message(msg_data['id'], msg_data.get('data', {}))
         
         sequence.updated_at = datetime.now()
         return self.repository.update_sequence(sequence)

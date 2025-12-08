@@ -1,14 +1,13 @@
 import axios from 'axios';
-import type { 
-  MscSequence, 
-  MscMessage, 
-  TrackedConfiguration, 
+import type {
+  MscSequence,
+  MscMessage,
   ValidationResult,
-  IdentifierSuggestion 
+  IdentifierSuggestion
 } from '../domain/msc/types';
 
 // API base URL - should match backend configuration
-const API_BASE_URL = process.env.NODE_ENV === 'development' 
+const API_BASE_URL = import.meta.env.DEV
   ? 'http://localhost:8000/api/msc'
   : '/api/msc';
 
@@ -64,11 +63,12 @@ class MscService {
   }
 
   async updateSequence(
-    sequenceId: string, 
-    updates: { 
-      name?: string; 
-      add_message?: Partial<MscMessage>; 
-      remove_message?: string; 
+    sequenceId: string,
+    updates: {
+      name?: string;
+      add_message?: Partial<MscMessage>;
+      remove_message?: string;
+      update_message?: { id: string; data: any; };
     }
   ): Promise<MscSequence | null> {
     const response = await this.api.put<MscSequence>(`/sequences/${sequenceId}`, updates);
@@ -88,15 +88,17 @@ class MscService {
   }
 
   async addMessageToSequence(
-    sequenceId: string, 
+    sequenceId: string,
     message: Partial<MscMessage>
   ): Promise<MscSequence> {
     const response = await this.api.post<MscSequence>(`/sequences/${sequenceId}/messages`, message);
     return response.data;
   }
 
-  async listSequences(protocol?: string): Promise<MscSequence[]> {
-    const params = protocol ? { protocol } : {};
+  async listSequences(protocol?: string, sessionId?: string): Promise<MscSequence[]> {
+    const params: Record<string, string> = {};
+    if (protocol) params.protocol = protocol;
+    if (sessionId) params.session_id = sessionId;
     const response = await this.api.get<MscSequence[]>('/sequences', { params });
     return response.data;
   }
@@ -146,9 +148,9 @@ class MscService {
       protocol,
       type_name: typeName,
     };
-    
+
     const response = await this.api.get<IdentifierSuggestion[]>(
-      `/sequences/${sequenceId}/suggestions`, 
+      `/sequences/${sequenceId}/suggestions`,
       { params }
     );
     return response.data;
@@ -165,7 +167,7 @@ class MscService {
     // Note: This would require a batch endpoint on backend
     // For now, validate sequentially
     const results: { [sequenceId: string]: any } = {};
-    
+
     for (const sequenceId of sequenceIds) {
       try {
         const validation = await this.validateSequence(sequenceId);
@@ -184,7 +186,7 @@ class MscService {
         };
       }
     }
-    
+
     return results;
   }
 
@@ -207,26 +209,7 @@ class MscService {
 
   // Error Handling Helpers
 
-  private handleMscError(error: any, operation: string): never {
-    console.error(`MSC Service ${operation} failed:`, error);
-    
-    if (error.response) {
-      // Server responded with error status
-      const status = error.response.status;
-      const detail = error.response.data?.detail || 'Unknown error';
-      
-      if (status === 400) {
-        throw new Error(`Invalid ${operation} request: ${detail}`);
-      } else if (status === 404) {
-        throw new Error(`${operation} resource not found: ${detail}`);
-      } else if (status >= 500) {
-        throw new Error(`MSC service unavailable: ${detail}`);
-      }
-    }
-    
-    // Network or other error
-    throw new Error(`Failed to ${operation}: ${error.message}`);
-  }
+
 }
 
 // Types for API responses (if needed beyond domain types)

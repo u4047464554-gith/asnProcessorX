@@ -92,7 +92,7 @@ describe('MscEditor', () => {
   it('renders MSC Editor with header', () => {
     renderMscEditor();
     expect(screen.getByText('MSC Editor')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('Sequence name')).toBeInTheDocument();
+    expect(screen.getByPlaceholderText('Enter sequence name')).toBeInTheDocument();
   });
 
   it('creates a new sequence on mount if none exists', async () => {
@@ -139,7 +139,7 @@ describe('MscEditor', () => {
     });
 
     renderMscEditor();
-    const nameInput = screen.getByPlaceholderText('Sequence name');
+    const nameInput = screen.getByPlaceholderText('Enter sequence name');
 
     // Type multiple characters quickly
     act(() => {
@@ -172,7 +172,7 @@ describe('MscEditor', () => {
     });
 
     renderMscEditor();
-    const nameInput = screen.getByPlaceholderText('Sequence name');
+    const nameInput = screen.getByPlaceholderText('Enter sequence name');
 
     fireEvent.change(nameInput, { target: { value: 'My Sequence' } });
     fireEvent.blur(nameInput);
@@ -322,15 +322,15 @@ describe('MscEditor', () => {
     // Simulate selecting a message type and adding it
     // This would normally be done through UI interaction
     // For testing, we'll directly call the handler logic
-    
+
     // The component should fetch example data when adding a message
     // Verify that getTypeExample is called and returns non-empty data
     const exampleResult = await mockAsnService.getTypeExample('rrc_demo', 'RRCReconfiguration');
-    
+
     expect(exampleResult.data).toBeDefined();
     expect(exampleResult.data).not.toEqual({});
     expect(Object.keys(exampleResult.data).length).toBeGreaterThan(0);
-    
+
     // Verify the data structure is correct
     expect(exampleResult.data.rrcReconfiguration).toBeDefined();
   });
@@ -544,13 +544,13 @@ describe('MscEditor', () => {
     const originalCreateObjectURL = global.URL.createObjectURL;
     const originalRevokeObjectURL = global.URL.revokeObjectURL;
     const originalCreateElement = document.createElement;
-    
+
     global.URL.createObjectURL = vi.fn(() => 'blob:test');
     global.URL.revokeObjectURL = vi.fn();
     const mockClick = vi.fn();
     const mockAppendChild = vi.fn();
     const mockRemoveChild = vi.fn();
-    
+
     document.createElement = vi.fn((tag: string) => {
       if (tag === 'a') {
         return {
@@ -561,7 +561,7 @@ describe('MscEditor', () => {
       }
       return originalCreateElement.call(document, tag);
     });
-    
+
     document.body.appendChild = mockAppendChild as any;
     document.body.removeChild = mockRemoveChild as any;
 
@@ -571,7 +571,7 @@ describe('MscEditor', () => {
     fireEvent.click(saveButton);
 
     expect(exportSequence).toHaveBeenCalled();
-    
+
     // Restore
     global.URL.createObjectURL = originalCreateObjectURL;
     global.URL.revokeObjectURL = originalRevokeObjectURL;

@@ -23,6 +23,11 @@ It provides three modes of operation:
 - **C Code Generation**: Generate C stubs (`asn1c` based) for selected protocols (requires `asn1c` installed).
 - **Service Mode**: The application can act as a configurable server/monitor for the ASN.1 processing engine.
 
+## Documentation
+
+- **[Architecture Guide](docs/ARCHITECTURE.md)**: Detailed system architecture, data flow diagrams, and design decisions
+- **[API Reference](API.md)**: Full REST API documentation
+
 ## Quick Start (Desktop App)
 
 Download the latest installer from the [Releases Page](https://github.com/u4047464554-gith/asnProcessorX/releases).

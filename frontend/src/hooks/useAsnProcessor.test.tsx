@@ -36,6 +36,15 @@ vi.mock('../data/demos', () => ({
     }
 }));
 
+// Mock session
+vi.mock('./useSession', () => ({
+    useSession: () => ({
+        currentSessionId: 'test-session',
+        sessions: [],
+        loading: false
+    })
+}));
+
 describe('useAsnProcessor', () => {
     beforeEach(() => {
         vi.clearAllMocks();
@@ -53,10 +62,10 @@ describe('useAsnProcessor', () => {
     it('fetches types and examples when protocol selected', async () => {
         const { result } = renderHook(() => useAsnProcessor());
         act(() => { result.current.setSelectedProtocol('proto1'); });
-        
+
         await waitFor(() => {
-             // We expect grouped options.
-            expect(result.current.demoTypeOptions).toHaveLength(1); 
+            // We expect grouped options.
+            expect(result.current.demoTypeOptions).toHaveLength(1);
             const group = result.current.demoTypeOptions[0] as any;
             expect(group.group).toBe('Demos');
             expect(group.items).toHaveLength(3);
@@ -67,16 +76,16 @@ describe('useAsnProcessor', () => {
         const tree = { name: 'Type1', type: 'INTEGER' };
         (AsnService.getDefinition as any).mockResolvedValue(tree);
         const { result } = renderHook(() => useAsnProcessor());
-        
-        act(() => { 
+
+        act(() => {
             result.current.setSelectedProtocol('proto1');
         });
         await waitFor(() => expect(AsnService.getTypes).toHaveBeenCalled());
 
         act(() => {
-            result.current.setSelectedType('Type1'); 
+            result.current.setSelectedType('Type1');
         });
-        
+
         await waitFor(() => expect(result.current.definitionTree).toEqual(tree));
     });
 
@@ -85,9 +94,9 @@ describe('useAsnProcessor', () => {
         (AsnService.trace as any).mockResolvedValue({ trace: {}, total_bits: 8 });
         const { result } = renderHook(() => useAsnProcessor());
         act(() => { result.current.setSelectedProtocol('proto1'); });
-        
+
         await act(async () => { await result.current.handleDecode('AABB'); });
-        
+
         expect(result.current.jsonData).toContain('"val": 1');
         expect(result.current.error).toBeNull();
     });
@@ -96,16 +105,16 @@ describe('useAsnProcessor', () => {
         (AsnService.decode as any).mockResolvedValue({ status: 'failure', error: 'Failed' });
         const { result } = renderHook(() => useAsnProcessor());
         act(() => { result.current.setSelectedProtocol('proto1'); });
-        
+
         await act(async () => { await result.current.handleDecode('AABB'); });
         expect(result.current.error).toBe('Failed');
     });
-    
+
     it('handleDecode network error', async () => {
         (AsnService.decode as any).mockRejectedValue(new Error('Net Error'));
         const { result } = renderHook(() => useAsnProcessor());
         act(() => { result.current.setSelectedProtocol('proto1'); });
-        
+
         await act(async () => { await result.current.handleDecode('AABB'); });
         expect(result.current.error).toBe('Net Error');
     });
@@ -114,12 +123,12 @@ describe('useAsnProcessor', () => {
         (AsnService.encode as any).mockResolvedValue({ status: 'success', hex_data: 'CCDD' });
         (AsnService.trace as any).mockResolvedValue({ trace: {}, total_bits: 16 });
         const { result } = renderHook(() => useAsnProcessor());
-        act(() => { 
+        act(() => {
             result.current.setSelectedProtocol('proto1');
             result.current.setSelectedType('Type1');
             result.current.setJsonData('{"val": 1}');
         });
-        
+
         await act(async () => { await result.current.handleEncode(); });
         expect(result.current.hexData).toBe('CCDD');
         expect(result.current.formattedHex).toBe('0xCC, 0xDD');
@@ -127,12 +136,12 @@ describe('useAsnProcessor', () => {
 
     it('handleEncode invalid JSON', async () => {
         const { result } = renderHook(() => useAsnProcessor());
-        act(() => { 
+        act(() => {
             result.current.setSelectedProtocol('proto1');
             result.current.setSelectedType('Type1');
             result.current.setJsonData('{bad');
         });
-        
+
         await act(async () => { await result.current.handleEncode(); });
         expect(result.current.error).toBe('Invalid JSON');
     });
@@ -141,7 +150,7 @@ describe('useAsnProcessor', () => {
         (AsnService.generateCStubs as any).mockResolvedValue(new Blob());
         const { result } = renderHook(() => useAsnProcessor());
         act(() => { result.current.setSelectedProtocol('proto1'); });
-        
+
         let success;
         await act(async () => { success = await result.current.handleCodegen(); });
         expect(success).toBe(true);
@@ -158,19 +167,19 @@ describe('useAsnProcessor', () => {
         (AsnService.generateCStubs as any).mockRejectedValue(err);
         const { result } = renderHook(() => useAsnProcessor());
         act(() => { result.current.setSelectedProtocol('proto1'); });
-        
+
         let success;
         await act(async () => { success = await result.current.handleCodegen(); });
         expect(success).toBe(false);
         expect(result.current.codegenError).toBe('Compile Error');
     });
-    
+
     it('handleDemoSelect loads valid demo', () => {
         const { result } = renderHook(() => useAsnProcessor());
         act(() => { result.current.setSelectedProtocol('proto1'); });
-        
+
         act(() => { result.current.handleDemoSelect('Type1::valid'); });
-        
+
         expect(result.current.selectedType).toBe('Type1');
         expect(JSON.parse(result.current.jsonData)).toEqual({ val: 1 });
         expect(result.current.error).toBeNull();
@@ -181,7 +190,7 @@ describe('useAsnProcessor', () => {
         act(() => { result.current.setSelectedProtocol('proto1'); });
         // Wait for examples to load (useEffect)
         // The useEffect is async, wait for it.
-        
+
         act(() => { result.current.handleDemoSelect('Type1::dynamic'); });
         // Ideally verify dynamic data. 
         // But state update relies on async effect finishing first. 
@@ -189,11 +198,11 @@ describe('useAsnProcessor', () => {
     });
 
     it('handleDemoSelect loads error demo', () => {
-         const { result } = renderHook(() => useAsnProcessor());
-         act(() => { result.current.setSelectedProtocol('proto1'); });
-         
-         act(() => { result.current.handleDemoSelect('Type1::error::0'); });
-         
-         expect(JSON.parse(result.current.jsonData)).toEqual({ val: 'bad' });
+        const { result } = renderHook(() => useAsnProcessor());
+        act(() => { result.current.setSelectedProtocol('proto1'); });
+
+        act(() => { result.current.handleDemoSelect('Type1::error::0'); });
+
+        expect(JSON.parse(result.current.jsonData)).toEqual({ val: 'bad' });
     });
 });

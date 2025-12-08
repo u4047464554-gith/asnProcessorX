@@ -1,26 +1,24 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { 
-  Paper, 
-  Group, 
-  Stack, 
-  Text, 
-  Select, 
-  Button, 
-  ActionIcon, 
-  Badge, 
-  Tooltip, 
-  TextInput,
+import {
+  Paper,
+  Group,
+  Stack,
+  Text,
+  Select,
+  Button,
+  ActionIcon,
+  Badge,
+  Tooltip,
   Divider,
   ScrollArea,
   JsonInput,
   SegmentedControl,
   Loader
 } from '@mantine/core';
-import { 
-  IconPlus, 
-  IconTrash, 
-  IconCopy, 
-  IconCheck, 
+import {
+  IconTrash,
+  IconCopy,
+  IconCheck,
   IconAlertCircle,
   IconChevronDown,
   IconChevronUp,
@@ -85,7 +83,7 @@ export const MessageEditor: React.FC<MessageEditorProps> = ({
   availableTypes = [],
   protocol = 'rrc_demo'
 }) => {
-  const { state: editorState, detectIdentifiers, getFieldSuggestions, applySuggestion } = useMscEditor();
+  const { state: editorState, detectIdentifiers, getFieldSuggestions } = useMscEditor();
   const [localMessage, setLocalMessage] = useState<MscMessage | null>(message);
   const [localData, setLocalData] = useState<any>({});
   const [localDataJson, setLocalDataJson] = useState<string>('{}');
@@ -94,10 +92,10 @@ export const MessageEditor: React.FC<MessageEditorProps> = ({
   const [targetActor, setTargetActor] = useState<string>('gNB');
   const [validationErrors, setValidationErrors] = useState<ValidationResult[]>([]);
   const [availableMessageTypes, setAvailableMessageTypes] = useState<string[]>(availableTypes);
-  const [fieldSuggestions, setFieldSuggestions] = useState<IdentifierSuggestion[]>([]);
-  const [selectedField, setSelectedField] = useState<string>('');
   const [isValidating, setIsValidating] = useState(false);
+  const [selectedField, setSelectedField] = useState<string>('');
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [fieldSuggestions, setFieldSuggestions] = useState<IdentifierSuggestion[]>([]);
   const [editorMode, setEditorMode] = useState<'structured' | 'raw'>('structured');
   const [typeSchema, setTypeSchema] = useState<any>(null);
   const [loadingSchema, setLoadingSchema] = useState(false);
@@ -171,20 +169,15 @@ export const MessageEditor: React.FC<MessageEditorProps> = ({
     setMessageType(type);
     setLocalData({}); // Reset data for new type
     setLocalDataJson('{}');
-    
+
     // Auto-set message direction based on type
     const direction = MESSAGE_DIRECTIONS[type];
     if (direction) {
       setSourceActor(direction.source);
       setTargetActor(direction.target);
     }
-    
-    // Get suggestions for common fields
-    if (sequenceId && type) {
-      getFieldSuggestions('', 0).then((suggestions) => {
-        setFieldSuggestions(suggestions || []);
-      }).catch(console.error);
-    }
+
+
   }, [sequenceId, getFieldSuggestions]);
 
   const handleActorChange = useCallback((actor: string, direction: 'source' | 'target') => {
@@ -193,7 +186,7 @@ export const MessageEditor: React.FC<MessageEditorProps> = ({
     } else {
       setTargetActor(actor);
     }
-    
+
     // Validate actor compatibility with message type
     if (messageType) {
       // Could add validation logic here
@@ -203,7 +196,7 @@ export const MessageEditor: React.FC<MessageEditorProps> = ({
   const handleDataChange = useCallback((newData: any) => {
     setLocalData(newData);
     setLocalDataJson(JSON.stringify(newData, null, 2));
-    
+
     // Auto-validate data changes
     if (messageType && sequenceId) {
       // Trigger validation for changed fields
@@ -216,7 +209,7 @@ export const MessageEditor: React.FC<MessageEditorProps> = ({
     try {
       const parsed = JSON.parse(json);
       setLocalData(parsed);
-      
+
       // Auto-validate data changes
       if (messageType && sequenceId) {
         validateMessageData(parsed);
@@ -228,11 +221,11 @@ export const MessageEditor: React.FC<MessageEditorProps> = ({
 
   const validateMessageData = useCallback(async (data: any) => {
     setIsValidating(true);
-    
+
     try {
       // For now, basic client-side validation
       const errors: ValidationResult[] = [];
-      
+
       // Required fields based on message type
       const requiredFields = getRequiredFieldsForType(messageType);
       for (const field of requiredFields) {
@@ -245,12 +238,12 @@ export const MessageEditor: React.FC<MessageEditorProps> = ({
           });
         }
       }
-      
+
       // Identifier consistency check (simplified)
       if (sequenceId && editorState.currentSequence) {
         const currentIndex = editorState.selectedMessageIndex ?? 0;
         const suggestions = await getFieldSuggestions('', currentIndex);
-        
+
         // Check if required identifiers have values
         const trackedIdentifiers = await detectIdentifiers(messageType);
         for (const identifier of trackedIdentifiers) {
@@ -264,9 +257,9 @@ export const MessageEditor: React.FC<MessageEditorProps> = ({
           }
         }
       }
-      
+
       setValidationErrors(errors);
-      
+
     } catch (error) {
       console.error('Validation error:', error);
       setValidationErrors([{
@@ -288,36 +281,42 @@ export const MessageEditor: React.FC<MessageEditorProps> = ({
       'MeasurementReport': ['measResults'],
       'RRCConnectionRelease': ['releaseCause']
     };
-    
+
     return requiredFieldsMap[type] || [];
   }, []);
 
   const handleFieldFocus = useCallback((field: string) => {
     setSelectedField(field);
     setShowSuggestions(true);
-    
+
     if (sequenceId && messageType && editorState.currentSequence) {
       const currentIndex = editorState.selectedMessageIndex ?? 0;
-      getFieldSuggestions(field, currentIndex).then(setFieldSuggestions).catch(console.error);
+      getFieldSuggestions(field, currentIndex).then((suggestions) => {
+        setFieldSuggestions(suggestions || []);
+      }).catch(console.error);
     }
   }, [sequenceId, messageType, editorState.currentSequence, editorState.selectedMessageIndex, getFieldSuggestions]);
 
   const handleSuggestionSelect = useCallback((suggestion: IdentifierSuggestion) => {
     if (selectedField && localData) {
-      const updatedData = {
-        ...localData,
-        [selectedField]: suggestion.value
-      };
-      
-      setLocalData(updatedData);
+      const updatedData = { ...localData };
+      // Handle nested paths if necessary, but for now flat assignment to field name
+      // If selectedField is a path (e.g. "a.b"), we need to update deep
+      // But StructuredJsonEditor passes simple names usually, or primitive handler keys?
+      // Wait, StructuredJsonEditor passes node.name which is simple name.
+      // If we need deep update, we need path. 
+      // But let's assume flat or simple update for now as per previous implementation.
+      // The previous implementation used: [selectedField]: suggestion.value
+      updatedData[selectedField] = suggestion.value;
+
+      handleDataChange(updatedData);
       setShowSuggestions(false);
-      
+
       if (onSuggestionSelect) {
         onSuggestionSelect(suggestion);
       }
     }
-  }, [selectedField, localData, onSuggestionSelect]);
-
+  }, [selectedField, localData, handleDataChange, onSuggestionSelect]);
   const handleSave = useCallback(() => {
     if (!messageType || !localData || sourceActor === targetActor) {
       // Basic validation
@@ -329,7 +328,7 @@ export const MessageEditor: React.FC<MessageEditorProps> = ({
         return;
       }
     }
-    
+
     const finalMessage: MscMessage = {
       id: localMessage?.id || '',
       type_name: messageType,
@@ -339,7 +338,7 @@ export const MessageEditor: React.FC<MessageEditorProps> = ({
       timestamp: Date.now() / 1000,
       validationErrors: validationErrors.length > 0 ? validationErrors : undefined
     };
-    
+
     onSave(finalMessage);
   }, [messageType, localData, sourceActor, targetActor, validationErrors, localMessage?.id, onSave]);
 
@@ -372,7 +371,7 @@ export const MessageEditor: React.FC<MessageEditorProps> = ({
 
   return (
     <Paper withBorder p="md" radius="md" shadow="sm">
-      <Group position="apart" mb="md">
+      <Group justify="space-between" mb="md">
         <Text size="lg" fw={600}>
           {isNew ? 'New Message' : `Edit Message: ${localMessage?.type_name}`}
         </Text>
@@ -392,16 +391,16 @@ export const MessageEditor: React.FC<MessageEditorProps> = ({
             </Tooltip>
           )}
           <Group>
-            <Button 
-              variant="outline" 
-              size="sm" 
+            <Button
+              variant="outline"
+              size="sm"
               onClick={onCancel}
               leftSection={<IconChevronDown size={14} />}
             >
               Cancel
             </Button>
-            <Button 
-              size="sm" 
+            <Button
+              size="sm"
               onClick={handleSave}
               leftSection={<IconCheck size={14} />}
               loading={isValidating}
@@ -425,7 +424,7 @@ export const MessageEditor: React.FC<MessageEditorProps> = ({
             placeholder="Select message type"
             searchable
             clearable={false}
-            withinPortal
+            comboboxProps={{ withinPortal: true }}
             size="md"
             style={{ minWidth: 250 }}
           />
@@ -493,14 +492,14 @@ export const MessageEditor: React.FC<MessageEditorProps> = ({
               )}
             </Group>
           </Group>
-          
+
           {loadingSchema && (
             <Paper p="md" withBorder style={{ textAlign: 'center' }}>
               <Loader size="sm" />
               <Text size="xs" c="dimmed" mt="xs">Loading schema...</Text>
             </Paper>
           )}
-          
+
           {!loadingSchema && editorMode === 'structured' && (
             <ScrollArea h={300}>
               <StructuredJsonEditor
@@ -511,7 +510,7 @@ export const MessageEditor: React.FC<MessageEditorProps> = ({
               />
             </ScrollArea>
           )}
-          
+
           {!loadingSchema && editorMode === 'raw' && (
             <JsonInput
               placeholder='{ "field": "value" }'
@@ -526,15 +525,20 @@ export const MessageEditor: React.FC<MessageEditorProps> = ({
           )}
 
           {/* Field Suggestions */}
-          {showSuggestions && suggestions.length > 0 && selectedField && (
+          {showSuggestions && (suggestions.length > 0 || fieldSuggestions.length > 0) && selectedField && (
             <Paper withBorder p="sm" mt="sm" shadow="xs" style={{ maxHeight: 200, overflowY: 'auto' }}>
-              <Text size="sm" fw={500} mb="xs">
-                Suggestions for '{selectedField}':
-              </Text>
+              <Group justify="space-between" mb="xs">
+                <Text size="sm" fw={500}>
+                  Suggestions for '{selectedField}':
+                </Text>
+                <ActionIcon size="xs" variant="subtle" onClick={() => setShowSuggestions(false)}>
+                  <IconChevronUp size={12} />
+                </ActionIcon>
+              </Group>
               <Stack gap="xs">
-                {suggestions.slice(0, 5).map((suggestion, index) => (
-                  <Group key={index} p="xs" style={{ 
-                    border: '1px solid #e5e7eb', 
+                {(fieldSuggestions.length > 0 ? fieldSuggestions : suggestions).slice(0, 5).map((suggestion, index) => (
+                  <Group key={index} p="xs" style={{
+                    border: '1px solid #e5e7eb',
                     borderRadius: '4px',
                     cursor: 'pointer',
                     backgroundColor: suggestion.confidence > 0.8 ? '#f0fdf4' : '#fef3c7'
@@ -547,11 +551,6 @@ export const MessageEditor: React.FC<MessageEditorProps> = ({
                     </Text>
                   </Group>
                 ))}
-                {suggestions.length > 5 && (
-                  <Text size="xs" c="dimmed">
-                    ... and {suggestions.length - 5} more suggestions
-                  </Text>
-                )}
               </Stack>
             </Paper>
           )}
@@ -562,7 +561,7 @@ export const MessageEditor: React.FC<MessageEditorProps> = ({
               <Divider label="Validation" labelPosition="center" />
               <Stack gap="xs">
                 {validationErrors.map((error, index) => (
-                  <Group key={index} p="xs" style={{ 
+                  <Group key={index} p="xs" style={{
                     backgroundColor: error.type === 'error' ? '#fef2f2' : '#fffbeb',
                     borderRadius: '4px',
                     border: `1px solid ${error.type === 'error' ? '#fecaca' : '#fde68a'}`
@@ -595,16 +594,16 @@ export const MessageEditor: React.FC<MessageEditorProps> = ({
         {/* Quick Actions */}
         {!isNew && localMessage && (
           <Group mt="md">
-            <Button 
-              variant="light" 
+            <Button
+              variant="light"
               leftSection={<IconCopy size={14} />}
               onClick={handleDuplicate}
               size="sm"
             >
               Duplicate Message
             </Button>
-            <Button 
-              variant="light" 
+            <Button
+              variant="light"
               color="gray"
               leftSection={<IconChevronUp size={14} />}
               size="sm"
@@ -612,8 +611,8 @@ export const MessageEditor: React.FC<MessageEditorProps> = ({
             >
               Move Up
             </Button>
-            <Button 
-              variant="light" 
+            <Button
+              variant="light"
               color="gray"
               leftSection={<IconChevronDown size={14} />}
               size="sm"

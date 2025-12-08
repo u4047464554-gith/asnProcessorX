@@ -25,6 +25,7 @@ class SequenceDTO:
         self.id = sequence.id
         self.name = sequence.name
         self.protocol = sequence.protocol
+        self.session_id = sequence.session_id
         self.messages = [
             {
                 'id': msg.id,
@@ -77,7 +78,8 @@ class SequenceDTO:
             messages=[],
             sub_sequences=[],
             tracked_identifiers={},
-            validation_results=[]
+            validation_results=[],
+            session_id=data.get('session_id')
         ))
 
 class MessageDTO:
@@ -121,12 +123,7 @@ class MscApplicationService:
     def create_sequence(self, name: str, protocol: str, session_id: Optional[str] = None) -> SequenceDTO:
         """Create a new MSC sequence."""
         use_case = self.factory.create_sequence()
-        sequence = use_case.execute(name, protocol)
-        if session_id:
-            sequence.session_id = session_id
-            # Update in repository to persist session_id
-            repository = use_case.repository
-            repository.update_sequence(sequence)
+        sequence = use_case.execute(name, protocol, session_id)
         return SequenceDTO(sequence)
     
     def get_sequence(self, sequence_id: str) -> Optional[SequenceDTO]:

@@ -6,10 +6,15 @@
     "build": "npm run build --prefix frontend",
     "lint": "npm run lint --prefix frontend",
     "test": "npm run test --prefix frontend",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed",
     "electron:dev": "npm run electron:dev --prefix frontend",
     "electron:build": "npm run electron:build --prefix frontend"
   },
   "devDependencies": {
+    "@playwright/test": "^1.57.0",
+    "@types/node": "^24.10.1",
     "@vitest/coverage-v8": "^4.0.14"
   }
 }

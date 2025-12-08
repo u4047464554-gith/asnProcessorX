@@ -9,7 +9,6 @@ import {
   Select,
   Badge,
   Alert,
-  Loader,
   Divider,
   ActionIcon,
   Tooltip,
@@ -17,7 +16,6 @@ import {
   SegmentedControl
 } from '@mantine/core';
 import {
-  IconUpload,
   IconX,
   IconCheck,
   IconAlertCircle,
@@ -76,7 +74,7 @@ export const HexDecoderPanel: React.FC<HexDecoderPanelProps> = ({
 
   const decodeHex = useCallback(async (hexString: string, typeName: string | null): Promise<DecodedMessage> => {
     const cleanedHex = cleanHex(hexString);
-    
+
     try {
       // Use the MSC-specific decode endpoint which auto-detects message direction
       const response = await fetch('/api/msc/decode-hex', {
@@ -137,7 +135,7 @@ export const HexDecoderPanel: React.FC<HexDecoderPanelProps> = ({
       } catch {
         // Ignore fallback errors
       }
-      
+
       return {
         typeName: typeName || 'Unknown',
         data: null,
@@ -160,7 +158,7 @@ export const HexDecoderPanel: React.FC<HexDecoderPanelProps> = ({
 
     try {
       let hexStrings: string[];
-      
+
       if (inputMode === 'multi') {
         hexStrings = splitMultipleHex(hexInput);
       } else {
@@ -174,7 +172,7 @@ export const HexDecoderPanel: React.FC<HexDecoderPanelProps> = ({
       }
 
       const results: DecodedMessage[] = [];
-      
+
       for (const hex of hexStrings) {
         const result = await decodeHex(hex, selectedType);
         results.push(result);
@@ -185,14 +183,14 @@ export const HexDecoderPanel: React.FC<HexDecoderPanelProps> = ({
       // Notify parent of successful decodes
       const successfulMessages = results
         .filter(r => r.status === 'success')
-        .map(r => ({ 
-          typeName: r.typeName, 
-          data: r.data, 
+        .map(r => ({
+          typeName: r.typeName,
+          data: r.data,
           hex: r.hex,
           sourceActor: r.sourceActor,
           targetActor: r.targetActor
         }));
-      
+
       if (successfulMessages.length > 0) {
         onMessagesDecoded(successfulMessages);
       }
@@ -251,7 +249,7 @@ export const HexDecoderPanel: React.FC<HexDecoderPanelProps> = ({
         </Group>
 
         <Text size="sm" c="dimmed">
-          {inputMode === 'single' 
+          {inputMode === 'single'
             ? 'Paste hex data for a single RRC message'
             : 'Paste multiple hex messages separated by blank lines'
           }
@@ -274,7 +272,7 @@ export const HexDecoderPanel: React.FC<HexDecoderPanelProps> = ({
 
         {/* Hex Input */}
         <Textarea
-          placeholder={inputMode === 'single' 
+          placeholder={inputMode === 'single'
             ? "80 05 1A 2B 3C... or 0x80, 0x05, 0x1A..."
             : "Message 1:\n80 05 1A 2B...\n\nMessage 2:\n90 06 2C 3D..."
           }
@@ -375,7 +373,7 @@ export const HexDecoderPanel: React.FC<HexDecoderPanelProps> = ({
                           {msg.hex.substring(0, 20)}...
                         </Badge>
                       </Group>
-                      
+
                       {msg.status === 'success' && (
                         <Group gap="xs">
                           <Tooltip label="Copy JSON">
