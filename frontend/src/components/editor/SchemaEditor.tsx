@@ -7,6 +7,7 @@ import { IconDeviceFloppy, IconPlus, IconRefresh, IconFileCode, IconCamera, Icon
 import axios from 'axios';
 import { AsnService } from '../../services/asnService';
 import Editor, { type Monaco } from '@monaco-editor/react';
+import { IssueReporter } from '../IssueReporter';
 
 interface SchemaEditorProps {
     protocol: string;
@@ -305,6 +306,10 @@ export function SchemaEditor({ protocol, onSchemaUpdated }: SchemaEditorProps) {
                     <Text size="sm" fw={700}>{selectedFile || 'No File Selected'}</Text>
                 </Group>
                 <Group gap="xs">
+                    <IssueReporter
+                        error={error}
+                        context={{ protocol, selectedFile, filesCount: files.length }}
+                    />
                     <Button
                         variant="default"
                         size="xs"
