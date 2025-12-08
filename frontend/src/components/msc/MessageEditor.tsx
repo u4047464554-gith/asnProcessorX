@@ -101,14 +101,24 @@ export const MessageEditor: React.FC<MessageEditorProps> = ({
   const [loadingSchema, setLoadingSchema] = useState(false);
 
   // Update available types when prop changes
-  useEffect(() => {
+  // Derived state for availableTypes
+  const [prevAvailableTypes, setPrevAvailableTypes] = useState(availableTypes);
+  if (availableTypes !== prevAvailableTypes) {
+    setPrevAvailableTypes(availableTypes);
     if (availableTypes && availableTypes.length > 0) {
       setAvailableMessageTypes(availableTypes);
     }
-  }, [availableTypes]);
+  }
 
   // Initialize local state from props
-  useEffect(() => {
+  // Initialize local state from props (Derived State)
+  const [prevMessage, setPrevMessage] = useState(message);
+  const [prevIsNew, setPrevIsNew] = useState(isNew);
+
+  if (message !== prevMessage || isNew !== prevIsNew) {
+    setPrevMessage(message);
+    setPrevIsNew(isNew);
+
     if (message) {
       setLocalMessage(message);
       setLocalData(message.data || {});
@@ -127,7 +137,7 @@ export const MessageEditor: React.FC<MessageEditorProps> = ({
       setValidationErrors([]);
       setTypeSchema(null);
     }
-  }, [message, isNew]);
+  }
 
   // Load schema when message type changes
   useEffect(() => {

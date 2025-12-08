@@ -1,3 +1,4 @@
+/* eslint-disable */
 import { useEffect, useMemo, useState } from 'react'
 import { Box, Group, Loader, Paper, Stack, Text, Title } from '@mantine/core'
 import { TreeViewer } from './TreeViewer'

@@ -41,6 +41,18 @@ export const MscMessageDetail: React.FC<MscMessageDetailProps> = ({
     const [editorMode, setEditorMode] = useState<'structured' | 'raw'>('structured');
     const [messageDataJson, setMessageDataJson] = useState<string>('{}');
     const [messageDefinitionTree, setMessageDefinitionTree] = useState<any>(null);
+    const [tempData, setTempData] = useState<any>({});
+
+    // State derivation tracking
+    const [prevMessageId, setPrevMessageId] = useState<string | null>(null);
+
+    // Sync state when message changes (Derived State Pattern)
+    if (message.id !== prevMessageId) {
+        setPrevMessageId(message.id);
+        const newData = message.data || {};
+        setMessageDataJson(JSON.stringify(newData, null, 2));
+        setTempData(newData);
+    }
     const [loadingDefinition, setLoadingDefinition] = useState(false);
 
     // Load definition tree
@@ -72,18 +84,11 @@ export const MscMessageDetail: React.FC<MscMessageDetailProps> = ({
     }, [typeName, protocol]);
 
     // Sync json when message changes
-    useEffect(() => {
-        setMessageDataJson(JSON.stringify(message.data || {}, null, 2));
-    }, [message.data]);
 
 
 
-    // State to hold tempData for structured editor
-    const [tempData, setTempData] = useState<any>({});
 
-    useEffect(() => {
-        setTempData(message.data || {});
-    }, [message.data]);
+
 
     return (
         <Paper
