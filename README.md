@@ -63,48 +63,294 @@ Download the latest installer from the [Releases Page](https://github.com/u40474
 ## Development Setup
 
 ### Prerequisites
-- Python 3.10+
-- Node.js 18+
-- **Build Tools (for C Codegen)**: `make`, `gcc` (or MSYS2/WSL on Windows).
 
-### 1. Backend Setup
+**Required:**
+- **Python 3.10+** (3.13 recommended)
+- **Node.js 18+** (20 LTS recommended)
+- **npm** (comes with Node.js)
+- **Git** (for version control)
+
+**Optional (for full functionality):**
+- **asn1c** - For C code generation feature
+- **MSYS2** or **WSL** (Windows only) - For building C code
+- **PyInstaller** - For building standalone backend executable (auto-installed)
+
+### 1. Clone and Initial Setup
+
 ```bash
-cd backend
-python -m venv .venv
-# Windows:
-.venv\Scripts\activate
-# Linux/Mac:
-source .venv/bin/activate
+# Clone the repository
+git clone https://github.com/u4047464554-gith/asnProcessorX.git
+cd asnProcessorX
 
-pip install -r requirements.txt
-```
-
-### 2. Frontend Setup
-```bash
-cd frontend
+# Install root dependencies
 npm install
 ```
 
-### 3. Running in Dev Mode
-Start the backend and frontend servers:
+### 2. Backend Setup
 
 ```bash
-# Terminal 1 (Backend)
-python backend/run_server.py
+cd backend
 
-# Terminal 2 (Frontend)
-npm run dev   # runs frontend dev server from repo root
-# (or cd frontend && npm run dev if you prefer)
+# Create virtual environment
+python -m venv .venv
+
+# Activate virtual environment
+# Windows (PowerShell):
+.venv\Scripts\Activate.ps1
+# Windows (CMD):
+.venv\Scripts\activate.bat
+# Linux/Mac:
+source .venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Verify installation
+python -c "import fastapi; import pydantic; print('Backend dependencies OK')"
 ```
-Access the web app at `http://localhost:5173`.
 
-## Building the Desktop App
+### 3. Frontend Setup
 
-To package the application as a standalone installer:
+```bash
+cd frontend  # from repo root
 
-```powershell
+# Install dependencies
+npm install
+
+# Verify installation
+npm list --depth=0
+```
+
+### 4. Running in Development Mode
+
+#### Option A: Using npm scripts (from repo root)
+
+```bash
+# Terminal 1: Start backend server
+npm run dev:backend
+
+# Terminal 2: Start frontend dev server  
+npm run dev
+
+# Access web app at http://localhost:5173
+# API docs at http://localhost:8000/docs
+```
+
+#### Option B: Manual start
+
+```bash
+# Terminal 1: Backend
+cd backend
+# Activate venv first (.venv\Scripts\Activate.ps1 or source .venv/bin/activate)
+python run_server.py
+# Server runs on http://localhost:8000
+
+# Terminal 2: Frontend
+cd frontend
+npm run dev
+# Dev server runs on http://localhost:5173
+```
+
+### 5. Running Tests
+
+#### Full Test Suite
+```bash
+# From repo root - runs all tests
+python scripts/verify_all.py
+```
+
+#### Backend Tests Only
+```bash
+# Unit and integration tests
+python -m pytest backend -v
+
+# With coverage report
+python -m pytest backend --cov=backend --cov-report=html
+
+# Specific test file
+python -m pytest backend/tests/test_api.py -v
+```
+
+#### Frontend Tests Only
+```bash
+cd frontend
+
+# Run tests
+npm run test
+
+# Watch mode (for development)
+npm run test:watch
+
+# With coverage
+npm run test:coverage
+```
+
+#### End-to-End Tests
+```bash
+# From repo root
+npm run test:e2e
+
+# With UI (debugging)
+npm run test:e2e:ui
+
+# Headed mode (see browser)
+npm run test:e2e:headed
+```
+
+### 6. Code Quality Checks
+
+```bash
+# Python linting (from backend/)
+python -m ruff check backend/
+python -m ruff check backend/ --fix  # Auto-fix
+
+# Type checking
+python -m mypy backend --ignore-missing-imports
+
+# Frontend linting
+cd frontend
+npm run lint
+```
+
+## Building the Desktop Application
+
+### Complete Build (Recommended)
+
+This builds both the backend executable and Electron app:
+
+```bash
+# From repo root
 python scripts/build_desktop.py
 ```
+
+**What this does:**
+1. ✅ Builds frontend (TypeScript → JavaScript, Vite bundling)
+2. ✅ Builds backend into standalone `.exe` (PyInstaller)
+3. ✅ Packages everything into Electron installer
+
+**Output:** 
+- `frontend/release/ASN Processor Setup 0.3.0.exe` (Windows installer)
+- `backend/dist/asn_backend.exe` (Standalone backend)
+
+**Build time:** ~3-5 minutes (depending on system)
+
+### Frontend-Only Build
+
+For development builds without backend:
+
+```bash
+cd frontend
+npm run build
+
+# Build output in: frontend/dist/
+```
+
+### Electron-Only Packaging
+
+If you already have a backend .exe:
+
+```bash
+cd frontend
+npm run electron:build
+
+# Output: frontend/release/
+```
+
+### Build Verification
+
+After building, test the installer:
+
+```bash
+# Install the application
+frontend\release\ASN Processor Setup 0.3.0.exe
+
+# Or run the portable backend directly
+backend\dist\asn_backend.exe
+```
+
+## Troubleshooting
+
+### Build Issues
+
+**"PyInstaller not found"**
+```bash
+pip install pyinstaller
+```
+
+**"electron-builder failed"**
+```bash
+cd frontend
+npm install --save-dev electron electron-builder
+```
+
+**"Cannot find backend executable"**
+- Ensure backend build completed: `backend/dist/asn_backend.exe` should exist
+- Re-run: `python scripts/build_desktop.py`
+
+### Runtime Issues
+
+**"Module not found" errors**
+```bash
+# Reinstall dependencies
+cd backend && pip install -r requirements.txt
+cd frontend && npm install
+```
+
+**"Port 8000 already in use"**
+```bash
+# Find and kill process on Windows
+netstat -ano | findstr :8000
+taskkill /PID <pid> /F
+
+# Or change port in backend/run_server.py
+```
+
+**Frontend can't connect to backend**
+- Verify backend is running: http://localhost:8000/health
+- Check CORS settings in `backend/main.py`
+- Verify frontend API URL in `.env` or `vite.config.ts`
+
+## Project Structure
+
+```
+asnProcessorX/
+├── backend/              # FastAPI backend
+│   ├── routers/         # API endpoints
+│   ├── core/            # Core ASN.1 engine
+│   ├── domain/          # Business logic
+│   ├── infrastructure/  # External services
+│   ├── tests/           # Backend tests
+│   └── run_server.py    # Dev server entry point
+├── frontend/            # React + Vite frontend
+│   ├── src/
+│   │   ├── components/  # React components
+│   │   ├── hooks/       # Custom hooks
+│   │   ├── services/    # API clients
+│   │   └── pages/       # Page components
+│   ├── electron/        # Electron main process
+│   └── dist/            # Build output
+├── scripts/             # Build and utility scripts
+│   ├── build_desktop.py # Main build script
+│   ├── verify_all.py    # Test runner
+│   └── test_release.py  # Release verification
+├── e2e/                 # Playwright E2E tests
+├── docs/                # Documentation
+│   └── ARCHITECTURE.md  # System architecture
+├── WORKFLOWS.md         # Development workflows
+└── README.md            # This file
+```
+
+## Release Process
+
+See [WORKFLOWS.md](WORKFLOWS.md) for detailed release procedures.
+
+**Quick release checklist:**
+1. ✅ Run full tests: `python scripts/verify_all.py`
+2. ✅ Update version in `backend/version.py` and `frontend/package.json`
+3. ✅ Build desktop app: `python scripts/build_desktop.py`
+4. ✅ Test installer manually
+5. ✅ Commit and tag: `git tag -a v0.3.0 -m "Release 0.3.0"`
+6. ✅ Push: `git push origin main --tags`
 
 **Output**: `frontend/release/ASN Processor Setup <version>.exe`
 
