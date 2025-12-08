@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { 
-    Stack, Text, Button, NavLink, 
+import {
+    Stack, Text, Button, NavLink,
     Group, ActionIcon, ScrollArea, Box, Loader, useMantineColorScheme, Tabs, Accordion, Modal, TextInput, Alert
 } from '@mantine/core';
 import { IconDeviceFloppy, IconPlus, IconRefresh, IconFileCode, IconCamera, IconInfoCircle } from '@tabler/icons-react';
@@ -14,45 +14,45 @@ interface SchemaEditorProps {
 }
 
 const SNIPPETS = [
-    { 
-        label: 'Module Definition', 
-        code: 'MyModule DEFINITIONS AUTOMATIC TAGS ::= BEGIN\n\n    EXPORTS ALL;\n\n    IMPORTS\n        -- Type FROM Module\n        ;\n\n    -- Definitions\n\nEND' 
+    {
+        label: 'Module Definition',
+        code: 'MyModule DEFINITIONS AUTOMATIC TAGS ::= BEGIN\n\n    EXPORTS ALL;\n\n    IMPORTS\n        -- Type FROM Module\n        ;\n\n    -- Definitions\n\nEND'
     },
-    { 
-        label: 'Sequence', 
-        code: 'MyType ::= SEQUENCE {\n    field1 Type1,\n    field2 Type2\n}' 
+    {
+        label: 'Sequence',
+        code: 'MyType ::= SEQUENCE {\n    field1 Type1,\n    field2 Type2\n}'
     },
-    { 
-        label: 'Integer (Range)', 
-        code: 'MyInt ::= INTEGER (0..255)' 
+    {
+        label: 'Integer (Range)',
+        code: 'MyInt ::= INTEGER (0..255)'
     },
-    { 
-        label: 'Integer (Named)', 
-        code: 'MyInt ::= INTEGER { val1(1), val2(2) }' 
+    {
+        label: 'Integer (Named)',
+        code: 'MyInt ::= INTEGER { val1(1), val2(2) }'
     },
-    { 
-        label: 'Choice', 
-        code: 'MyChoice ::= CHOICE {\n    opt1 [0] Type1,\n    opt2 [1] Type2\n}' 
+    {
+        label: 'Choice',
+        code: 'MyChoice ::= CHOICE {\n    opt1 [0] Type1,\n    opt2 [1] Type2\n}'
     },
-    { 
-        label: 'Enumerated', 
-        code: 'MyEnum ::= ENUMERATED {\n    val1(0),\n    val2(1)\n}' 
+    {
+        label: 'Enumerated',
+        code: 'MyEnum ::= ENUMERATED {\n    val1(0),\n    val2(1)\n}'
     },
-    { 
-        label: 'Sequence Of (List)', 
-        code: 'MyList ::= SEQUENCE (SIZE(0..10)) OF MyType' 
+    {
+        label: 'Sequence Of (List)',
+        code: 'MyList ::= SEQUENCE (SIZE(0..10)) OF MyType'
     },
-    { 
-        label: 'Optional Field', 
-        code: 'myField MyType OPTIONAL,' 
+    {
+        label: 'Optional Field',
+        code: 'myField MyType OPTIONAL,'
     },
-    { 
-        label: 'Bit String',  
-        code: 'MyBits ::= BIT STRING { flag1(0), flag2(1) }' 
+    {
+        label: 'Bit String',
+        code: 'MyBits ::= BIT STRING { flag1(0), flag2(1) }'
     },
-    { 
-        label: 'Comment', 
-        code: '-- Comment' 
+    {
+        label: 'Comment',
+        code: '-- Comment'
     }
 ];
 
@@ -65,7 +65,8 @@ export function SchemaEditor({ protocol, onSchemaUpdated }: SchemaEditorProps) {
     const [isDirty, setIsDirty] = useState(false);
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
-    
+    const [error, setError] = useState<string | null>(null);
+
     const [createFileOpen, setCreateFileOpen] = useState(false);
     const [newFileName, setNewFileName] = useState('');
     const [isBundled, setIsBundled] = useState(false);
@@ -75,13 +76,33 @@ export function SchemaEditor({ protocol, onSchemaUpdated }: SchemaEditorProps) {
 
     const fetchFiles = async () => {
         try {
+            setError(null);
             const res = await axios.get(`/api/files/protocols/${protocol}/files`);
-            setFiles(res.data);
-            if (!selectedFile && res.data.length > 0) {
-                setSelectedFile(res.data[0]); 
+
+            // Validate response data
+            if (!res.data) {
+                throw new Error('No data received from server');
             }
-        } catch (err) {
+
+            // Ensure we always have an array
+            const fileList = Array.isArray(res.data) ? res.data : [];
+
+            if (!Array.isArray(res.data)) {
+                console.warn('API returned non-array data:', res.data);
+                setError(`Unexpected response format from server`);
+            }
+
+            setFiles(fileList);
+            if (!selectedFile && fileList.length > 0) {
+                setSelectedFile(fileList[0]);
+            } else if (fileList.length === 0) {
+                setError('No schema files found. Click "New File" to create one.');
+            }
+        } catch (err: any) {
             console.error("Failed to load files", err);
+            const errorMsg = err.response?.data?.detail || err.message || 'Unknown error';
+            setError(`Error loading files: ${errorMsg}`);
+            setFiles([]); // Set to empty array on error
         }
     };
 
@@ -109,7 +130,7 @@ export function SchemaEditor({ protocol, onSchemaUpdated }: SchemaEditorProps) {
             setIsDirty(false);
             return;
         }
-        
+
         setLoading(true);
         axios.get(`/api/files/protocols/${protocol}/files/${selectedFile}`)
             .then(res => {
@@ -128,7 +149,7 @@ export function SchemaEditor({ protocol, onSchemaUpdated }: SchemaEditorProps) {
             const res = await axios.put(`/api/files/protocols/${protocol}/files/${selectedFile}`, { content });
             setIsDirty(false);
             fetchDefinitions(); // Refresh defs
-            
+
             if (res.data.status === 'warning') {
                 alert(res.data.message);
             }
@@ -146,11 +167,11 @@ export function SchemaEditor({ protocol, onSchemaUpdated }: SchemaEditorProps) {
         if (!selectedFile) return;
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
         const snapName = selectedFile.replace('.asn', '') + `_snap_${timestamp}.asn`;
-        
+
         try {
-            await axios.post(`/api/files/protocols/${protocol}/files`, { 
+            await axios.post(`/api/files/protocols/${protocol}/files`, {
                 filename: snapName,
-                content: content 
+                content: content
             });
             await fetchFiles();
             alert(`Snapshot saved as ${snapName}`);
@@ -162,9 +183,9 @@ export function SchemaEditor({ protocol, onSchemaUpdated }: SchemaEditorProps) {
     const insertSnippet = (snippet: string) => {
         const editor = editorRef.current;
         if (!editor) return;
-        
+
         const selection = editor.getSelection();
-        const op = {range: selection, text: snippet, forceMoveMarkers: true};
+        const op = { range: selection, text: snippet, forceMoveMarkers: true };
         editor.executeEdits("my-source", [op]);
         editor.focus();
         setIsDirty(true);
@@ -179,7 +200,7 @@ export function SchemaEditor({ protocol, onSchemaUpdated }: SchemaEditorProps) {
     const handleCreateFileConfirm = async () => {
         if (!newFileName) return;
         const filename = newFileName.endsWith('.asn') ? newFileName : `${newFileName}.asn`;
-        
+
         try {
             await axios.post(`/api/files/protocols/${protocol}/files`, { filename });
             await fetchFiles();
@@ -193,23 +214,23 @@ export function SchemaEditor({ protocol, onSchemaUpdated }: SchemaEditorProps) {
     const validateContent = (model: any, monaco: Monaco) => {
         const text = model.getValue();
         const markers: any[] = [];
-        
+
         const regex = /FROM\s+([A-Za-z0-9-]+)/g;
         let match;
-        
+
         while ((match = regex.exec(text)) !== null) {
             const moduleName = match[1];
-            const found = files.some(f => 
-                f.toLowerCase() === `${moduleName}.asn`.toLowerCase() || 
+            const found = files.some(f =>
+                f.toLowerCase() === `${moduleName}.asn`.toLowerCase() ||
                 f.toLowerCase() === moduleName.toLowerCase()
             ) || definitions[`${moduleName}.asn`] !== undefined;
-            
+
             if (!found) {
                 const startPos = match.index + match[0].lastIndexOf(moduleName);
                 const endPos = startPos + moduleName.length;
                 const start = model.getPositionAt(startPos);
                 const end = model.getPositionAt(endPos);
-                
+
                 markers.push({
                     severity: monaco.MarkerSeverity.Warning,
                     startLineNumber: start.lineNumber,
@@ -244,11 +265,11 @@ export function SchemaEditor({ protocol, onSchemaUpdated }: SchemaEditorProps) {
                 }
             });
         }
-        
+
         editor.onDidChangeModelContent(() => {
             validateContent(editor.getModel(), monaco);
         });
-        
+
         validateContent(editor.getModel(), monaco);
     };
 
@@ -256,34 +277,47 @@ export function SchemaEditor({ protocol, onSchemaUpdated }: SchemaEditorProps) {
         <Stack h="100%" gap={0}>
             {isBundled && (
                 <Alert variant="light" color="blue" title="Bundled Protocol" icon={<IconInfoCircle />} p="xs" radius={0}>
-                    Changes to this protocol are temporary (saved to app resources) and will be reset if you update the app. 
+                    Changes to this protocol are temporary (saved to app resources) and will be reset if you update the app.
                     To create persistent schemas, please add a custom folder in Settings.
+                </Alert>
+            )}
+            {error && (
+                <Alert
+                    variant="light"
+                    color="red"
+                    title="Error"
+                    p="xs"
+                    radius={0}
+                    withCloseButton
+                    onClose={() => setError(null)}
+                >
+                    {error}
                 </Alert>
             )}
             {/* Toolbar */}
             <Group justify="space-between" p="xs" style={{ borderBottom: '1px solid var(--mantine-color-default-border)', flexShrink: 0 }} bg="var(--mantine-color-body)">
                 <Group gap="xs">
-                    <Button variant="light" size="xs" leftSection={<IconPlus size="1rem"/>} onClick={openCreateFileModal} aria-label="Create new file">New File</Button>
+                    <Button variant="light" size="xs" leftSection={<IconPlus size="1rem" />} onClick={openCreateFileModal} aria-label="Create new file">New File</Button>
                     <ActionIcon variant="light" size="md" onClick={() => { fetchFiles(); fetchDefinitions(); }} title="Refresh" aria-label="Refresh files">
-                        <IconRefresh size="1rem"/>
+                        <IconRefresh size="1rem" />
                     </ActionIcon>
                     <Text size="sm" c="dimmed">|</Text>
                     <Text size="sm" fw={700}>{selectedFile || 'No File Selected'}</Text>
                 </Group>
                 <Group gap="xs">
-                    <Button 
-                        variant="default" 
-                        size="xs" 
-                        leftSection={<IconCamera size="1rem"/>}
+                    <Button
+                        variant="default"
+                        size="xs"
+                        leftSection={<IconCamera size="1rem" />}
                         disabled={!selectedFile}
                         onClick={handleSnapshot}
                         aria-label="Create snapshot"
                     >
                         Snapshot
                     </Button>
-                    <Button 
-                        size="xs" 
-                        leftSection={<IconDeviceFloppy size="1rem"/>}
+                    <Button
+                        size="xs"
+                        leftSection={<IconDeviceFloppy size="1rem" />}
                         disabled={!isDirty || !selectedFile}
                         loading={saving}
                         onClick={handleSave}
@@ -302,7 +336,7 @@ export function SchemaEditor({ protocol, onSchemaUpdated }: SchemaEditorProps) {
                     <ScrollArea style={{ flex: 1 }}>
                         <Stack gap={0}>
                             {files.map(file => (
-                                <NavLink 
+                                <NavLink
                                     key={file}
                                     label={file}
                                     active={selectedFile === file}
@@ -324,9 +358,9 @@ export function SchemaEditor({ protocol, onSchemaUpdated }: SchemaEditorProps) {
                 {/* Center: Editor */}
                 <Box style={{ flex: 1, minWidth: 0 }}>
                     {loading ? (
-                         <Box style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                             <Loader />
-                         </Box>
+                        <Box style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <Loader />
+                        </Box>
                     ) : (
                         <Editor
                             height="100%"
@@ -362,11 +396,11 @@ export function SchemaEditor({ protocol, onSchemaUpdated }: SchemaEditorProps) {
                             <ScrollArea h="100%" p="xs">
                                 <Stack gap="xs">
                                     {SNIPPETS.map(snip => (
-                                        <Button 
-                                            key={snip.label} 
-                                            variant="default" 
-                                            size="xs" 
-                                            fullWidth 
+                                        <Button
+                                            key={snip.label}
+                                            variant="default"
+                                            size="xs"
+                                            fullWidth
                                             justify="start"
                                             onClick={() => insertSnippet(snip.code)}
                                             disabled={!selectedFile}
@@ -388,11 +422,11 @@ export function SchemaEditor({ protocol, onSchemaUpdated }: SchemaEditorProps) {
                                             <Accordion.Panel p={0}>
                                                 <Stack gap={0}>
                                                     {types.map(type => (
-                                                        <Button 
+                                                        <Button
                                                             key={type}
-                                                            variant="subtle" 
-                                                            size="xs" 
-                                                            fullWidth 
+                                                            variant="subtle"
+                                                            size="xs"
+                                                            fullWidth
                                                             justify="start"
                                                             onClick={() => insertSnippet(type)}
                                                             disabled={!selectedFile}
@@ -415,13 +449,13 @@ export function SchemaEditor({ protocol, onSchemaUpdated }: SchemaEditorProps) {
 
             <Modal opened={createFileOpen} onClose={() => setCreateFileOpen(false)} title="New File" size="sm">
                 <Stack>
-                    <TextInput 
-                        label="Filename" 
-                        placeholder="my_spec.asn" 
-                        data-autofocus 
-                        value={newFileName} 
+                    <TextInput
+                        label="Filename"
+                        placeholder="my_spec.asn"
+                        data-autofocus
+                        value={newFileName}
                         onChange={(e) => setNewFileName(e.currentTarget.value)}
-                        onKeyDown={(e) => { if(e.key === 'Enter') handleCreateFileConfirm(); }}
+                        onKeyDown={(e) => { if (e.key === 'Enter') handleCreateFileConfirm(); }}
                     />
                     <Group justify="flex-end">
                         <Button variant="default" onClick={() => setCreateFileOpen(false)}>Cancel</Button>
