@@ -40,7 +40,19 @@ temp_clone/
 
 
 
+
 frontend/release/
 frontend/coverage/
 backend/dist/
 backend/build/
+
+# Test artifacts and reports
+*_test_output.txt
+*_test_log.txt
+test_delete_output.txt
+test-results/
+playwright-report/
+frontend/output.txt
+
+# MSC runtime storage (not committed, user data)
+backend/msc_storage/
