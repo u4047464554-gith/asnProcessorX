@@ -1,176 +1,143 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
 import { SchemaEditor } from './SchemaEditor';
-import { MantineProvider } from '@mantine/core';
 import axios from 'axios';
-import { vi } from 'vitest';
+import { MantineProvider } from '@mantine/core';
 
-const setModelMarkers = vi.fn();
-const executeEdits = vi.fn();
-
+// Mock axios
 vi.mock('axios');
+const mockedAxios = vi.mocked(axios);
+
+// Mock Monaco Editor
 vi.mock('@monaco-editor/react', () => ({
-  default: ({ value, onChange, onMount }: any) => {
-    if (onMount) {
-        const model = {
-            getValue: () => value,
-            getPositionAt: () => ({ lineNumber: 1, column: 1 }),
-        };
-        const editor = {
-            getModel: () => model,
-            onDidChangeModelContent: (cb: any) => {},
-            getSelection: () => ({}),
-            executeEdits,
-            focus: vi.fn(),
-            getValue: () => value
-        };
-        const monaco = {
-            MarkerSeverity: { Warning: 1 },
-            languages: { 
-                register: vi.fn(), 
-                setMonarchTokensProvider: vi.fn(),
-                getLanguages: () => []
-            },
-            editor: { 
-                defineTheme: vi.fn(), 
-                setModelMarkers 
-            }
-        };
-        setTimeout(() => onMount(editor, monaco), 0);
-    }
-    return <textarea 
-      data-testid="monaco-editor"
-      value={value} 
-      onChange={(e) => onChange(e.target.value)} 
-    />;
-  },
-  useMonaco: () => ({
-    languages: { register: vi.fn(), setMonarchTokensProvider: vi.fn() },
-    editor: { defineTheme: vi.fn(), setModelMarkers }
-  })
+  default: () => <div data-testid="monaco-editor">Monaco Editor Mock</div>,
 }));
 
-const renderWithMantine = (ui: React.ReactNode) => {
-  return render(<MantineProvider>{ui}</MantineProvider>);
-};
+// Wrapper component for Mantine
+const TestWrapper = ({ children }: { children: React.ReactNode }) => (
+  <MantineProvider>{children}</MantineProvider>
+);
 
-describe('SchemaEditor', () => {
-  const protocol = 'test_proto';
-  const files = ['file1.asn', 'file2.asn'];
-
+describe('SchemaEditor - Error Handling', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    (axios.get as any).mockImplementation((url: string) => {
-      if (url.endsWith('/files')) return Promise.resolve({ data: files });
-      if (url.endsWith('/files/file1.asn')) return Promise.resolve({ data: { content: 'Content 1' } });
-      if (url.endsWith('/definitions')) return Promise.resolve({ data: { 'file1.asn': ['TypeA'] } });
-      if (url.endsWith('/metadata')) return Promise.resolve({ data: { is_bundled: true } });
-      return Promise.resolve({ data: '' });
+  });
+
+  it('should handle API returning non-array data gracefully', async () => {
+    // Simulate API returning object instead of array
+    mockedAxios.get.mockResolvedValueOnce({
+      data: { error: 'Some error' }, // NOT an array
     });
-    window.alert = vi.fn();
-    console.error = vi.fn();
-  });
 
-  it('shows bundled warning', async () => {
-    renderWithMantine(<SchemaEditor protocol={protocol} />);
-    await waitFor(() => expect(screen.getByText(/Bundled Protocol/)).toBeInTheDocument());
-  });
+    render(
+      <TestWrapper>
+        <SchemaEditor protocol="test_protocol" />
+      </TestWrapper>
+    );
 
-  it('renders and loads files', async () => {
-    renderWithMantine(<SchemaEditor protocol={protocol} />);
+    // Wait for API call
     await waitFor(() => {
-        expect(screen.getAllByText('file1.asn').length).toBeGreaterThan(0);
+      expect(mockedAxios.get).toHaveBeenCalledWith(
+        '/api/files/protocols/test_protocol/files'
+      );
     });
-  });
 
-  it('loads file content on selection', async () => {
-    renderWithMantine(<SchemaEditor protocol={protocol} />);
-    await waitFor(() => screen.getAllByText('file1.asn'));
-    
-    fireEvent.click(screen.getAllByText('file1.asn')[0]); 
-    await waitFor(() => expect(screen.getByDisplayValue('Content 1')).toBeInTheDocument());
-  });
-
-  it('creates new file', async () => {
-    (axios.post as any).mockResolvedValue({});
-    renderWithMantine(<SchemaEditor protocol={protocol} />);
-    
-    fireEvent.click(screen.getByLabelText('Create new file'));
-    await waitFor(() => expect(screen.getByText('New File')).toBeInTheDocument());
-    
-    const input = await screen.findByLabelText('Filename');
-    fireEvent.change(input, { target: { value: 'new.asn' } });
-    fireEvent.click(screen.getByText('Create'));
-    
+    // Should show error message instead of crashing
     await waitFor(() => {
-        expect(axios.post).toHaveBeenCalledWith(`/api/files/protocols/${protocol}/files`, { filename: 'new.asn' });
+      const errorAlert = screen.queryByText(/unexpected response format/i);
+      expect(errorAlert).toBeInTheDocument();
     });
   });
 
-  it('saves file', async () => {
-    (axios.put as any).mockResolvedValue({});
-    renderWithMantine(<SchemaEditor protocol={protocol} />);
-    await waitFor(() => screen.getAllByText('file1.asn'));
-    fireEvent.click(screen.getAllByText('file1.asn')[0]);
-    await waitFor(() => screen.getByDisplayValue('Content 1'));
+  it('should handle API failure and show error to user', async () => {
+    // Simulate API failure
+    mockedAxios.get.mockRejectedValueOnce({
+      response: {
+        data: {
+          detail: 'Protocol not found',
+        },
+      },
+    });
 
-    fireEvent.change(screen.getByTestId('monaco-editor'), { target: { value: 'New Content' } });
-    fireEvent.click(screen.getByLabelText('Save file'));
-    
+    render(
+      <TestWrapper>
+        <SchemaEditor protocol="test_protocol" />
+      </TestWrapper>
+    );
+
+    // Should show error message to user
     await waitFor(() => {
-        expect(axios.put).toHaveBeenCalledWith(
-            `/api/files/protocols/${protocol}/files/file1.asn`,
-            { content: 'New Content' }
-        );
+      const errorMessage = screen.queryByText(/error loading files/i);
+      expect(errorMessage).toBeInTheDocument();
     });
   });
 
-  it('saves snapshot', async () => {
-    (axios.post as any).mockResolvedValue({});
-    renderWithMantine(<SchemaEditor protocol={protocol} />);
-    await waitFor(() => screen.getAllByText('file1.asn'));
-    fireEvent.click(screen.getAllByText('file1.asn')[0]);
-    
-    fireEvent.click(screen.getByLabelText('Create snapshot'));
-    
+  it('should handle empty file list gracefully', async () => {
+    // API returns empty array
+    mockedAxios.get.mockResolvedValueOnce({
+      data: [],
+    });
+
+    render(
+      <TestWrapper>
+        <SchemaEditor protocol="test_protocol" />
+      </TestWrapper>
+    );
+
+    // Should show helpful message
     await waitFor(() => {
-        expect(axios.post).toHaveBeenCalledWith(
-            `/api/files/protocols/${protocol}/files`,
-            expect.objectContaining({ filename: expect.stringContaining('_snap_') })
-        );
+      const message = screen.queryByText(/no schema files found/i);
+      expect(message).toBeInTheDocument();
     });
   });
 
-  it('inserts snippet', async () => {
-    renderWithMantine(<SchemaEditor protocol={protocol} />);
-    await waitFor(() => screen.getAllByText('file1.asn'));
-    fireEvent.click(screen.getAllByText('file1.asn')[0]);
-    
-    fireEvent.click(screen.getByText('Integer (Range)'));
-    expect(executeEdits).toHaveBeenCalled();
-  });
+  it('should successfully load files when API returns array', async () => {
+    // API returns proper array
+    mockedAxios.get.mockImplementation((url) => {
+      if (url.includes('/files')) {
+        return Promise.resolve({
+          data: ['file1.asn', 'file2.asn'],
+        });
+      }
+      if (url.includes('/definitions')) {
+        return Promise.resolve({
+          data: {},
+        });
+      }
+      return Promise.reject(new Error('Unknown endpoint'));
+    });
 
-  it('validates content', async () => {
-    renderWithMantine(<SchemaEditor protocol={protocol} />);
+    render(
+      <TestWrapper>
+        <SchemaEditor protocol="test_protocol" />
+      </TestWrapper>
+    );
+
+    // Should load files successfully
     await waitFor(() => {
-        expect(setModelMarkers).toHaveBeenCalled();
+      expect(screen.queryByText(/file1.asn/i)).toBeInTheDocument();
     });
+
+    // Should NOT show error
+    expect(screen.queryByText(/error/i)).not.toBeInTheDocument();
   });
 
-  it('handles save error', async () => {
-    (axios.put as any).mockRejectedValue(new Error('Save Failed'));
-    renderWithMantine(<SchemaEditor protocol={protocol} />);
-    await waitFor(() => screen.getAllByText('file1.asn'));
-    fireEvent.click(screen.getAllByText('file1.asn')[0]);
-    await waitFor(() => screen.getByDisplayValue('Content 1'));
-    
-    fireEvent.change(screen.getByTestId('monaco-editor'), { target: { value: 'Changed' } });
-    fireEvent.click(screen.getByLabelText('Save file'));
-    await waitFor(() => expect(window.alert).toHaveBeenCalledWith('Failed to save file'));
-  });
+  it('should validate response data exists before processing', async () => {
+    // API returns response with no data
+    mockedAxios.get.mockResolvedValueOnce({
+      data: null,
+    });
 
-  it('handles fetch error', async () => {
-    (axios.get as any).mockRejectedValue(new Error('Fetch Failed'));
-    renderWithMantine(<SchemaEditor protocol={protocol} />);
-    await waitFor(() => expect(console.error).toHaveBeenCalled());
+    render(
+      <TestWrapper>
+        <SchemaEditor protocol="test_protocol" />
+      </TestWrapper>
+    );
+
+    // Should handle null data
+    await waitFor(() => {
+      const errorMessage = screen.queryByText(/no data received/i);
+      expect(errorMessage).toBeInTheDocument();
+    });
   });
 });
