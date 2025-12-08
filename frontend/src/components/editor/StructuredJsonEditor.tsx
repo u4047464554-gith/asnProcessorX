@@ -29,7 +29,7 @@ const setCachedValue = (fieldName: string, value: any) => {
         const cache = JSON.parse(localStorage.getItem(EDITOR_CACHE_KEY) || '{}');
         cache[fieldName] = value;
         localStorage.setItem(EDITOR_CACHE_KEY, JSON.stringify(cache));
-    } catch { }
+    } catch { /* ignore */ }
 };
 
 function LongTextRenderer({ value, onChange, label, placeholder, onFocus }: any) {
@@ -100,6 +100,14 @@ const getKind = (node: DefinitionNode): string => {
     }
     return node.type;
 };
+
+const NodeLabel = ({ fieldName, node, onChange }: { fieldName: string, node: DefinitionNode, onChange: (val: any) => void }) => (
+    <Group gap="xs" mb={2} style={{ minWidth: 150 }}>
+        <Text size="sm">{fieldName}</Text>
+        <Text size="xs" c="dimmed">({node.type})</Text>
+        {node.optional && <ActionIcon size="xs" color="red" variant="subtle" onClick={() => onChange(undefined)} aria-label="Remove field"><IconTrash size="0.7rem" /></ActionIcon>}
+    </Group>
+);
 
 export function StructuredJsonEditor({ data, schema, onChange, onFieldFocus }: StructuredJsonEditorProps) {
     if (!schema) return <Text c="dimmed">No schema definition available</Text>;
@@ -370,14 +378,6 @@ function NodeRenderer({ node, value, onChange, level, path, label, isOptionalGho
         onChange(val);
     }
 
-    // Primitive Label
-    const Label = () => (
-        <Group gap="xs" mb={2} style={{ minWidth: 150 }}>
-            <Text size="sm">{fieldName}</Text>
-            <Text size="xs" c="dimmed">({node.type})</Text>
-            {node.optional && <ActionIcon size="xs" color="red" variant="subtle" onClick={() => onChange(undefined)} aria-label="Remove field"><IconTrash size="0.7rem" /></ActionIcon>}
-        </Group>
-    );
 
     // Helper for tuple inputs (BIT STRING / OCTET STRING)
     if (['BIT STRING', 'OCTET STRING'].includes(kind)) {
@@ -394,7 +394,7 @@ function NodeRenderer({ node, value, onChange, level, path, label, isOptionalGho
 
         return (
             <Box ml={level * 16} mb={4}>
-                <Label />
+                <NodeLabel fieldName={fieldName} node={node} onChange={onChange} />
                 <Group gap="xs" align="flex-end">
                     <LongTextRenderer
                         label="Hex Value"
@@ -439,7 +439,7 @@ function NodeRenderer({ node, value, onChange, level, path, label, isOptionalGho
     if (kind === 'INTEGER') {
         return (
             <Box ml={level * 16} mb={4}>
-                <Label />
+                <NodeLabel fieldName={fieldName} node={node} onChange={onChange} />
                 <NumberInput
                     size="xs"
                     value={Number(value) || 0}
@@ -453,7 +453,7 @@ function NodeRenderer({ node, value, onChange, level, path, label, isOptionalGho
     if (kind === 'BOOLEAN') {
         return (
             <Box ml={level * 16} mb={4}>
-                <Label />
+                <NodeLabel fieldName={fieldName} node={node} onChange={onChange} />
                 <Select
                     size="xs"
                     data={['true', 'false']}
@@ -471,7 +471,7 @@ function NodeRenderer({ node, value, onChange, level, path, label, isOptionalGho
 
         return (
             <Box ml={level * 16} mb={4}>
-                <Label />
+                <NodeLabel fieldName={fieldName} node={node} onChange={onChange} />
                 {choices.length > 0 ? (
                     <Select
                         size="xs"
@@ -497,7 +497,7 @@ function NodeRenderer({ node, value, onChange, level, path, label, isOptionalGho
     // Default fallback
     return (
         <Box ml={level * 16} mb={4}>
-            <Label />
+            <NodeLabel fieldName={fieldName} node={node} onChange={onChange} />
             <LongTextRenderer
                 value={typeof value === 'string' ? value : JSON.stringify(value)}
                 onChange={(val: string) => handlePrimitiveChange(val)}

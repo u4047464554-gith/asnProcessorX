@@ -78,7 +78,7 @@ export const MscDiagram: React.FC<MscDiagramProps> = ({
     );
   }
 
-  const renderActor = (actor: string, y: number) => {
+  const renderActor = React.useCallback((actor: string, y: number) => {
     const x = actorPositions[actor];
     const color = ACTOR_COLORS[actor as keyof typeof ACTOR_COLORS] || '#6b7280';
 
@@ -119,9 +119,9 @@ export const MscDiagram: React.FC<MscDiagramProps> = ({
         </g>
       </g>
     );
-  };
+  }, [actorPositions, height]);
 
-  const renderMessage = (message: MscMessage, index: number, y: number, depth: number = 0) => {
+  const renderMessage = React.useCallback((message: MscMessage, index: number, y: number, depth: number = 0) => {
     // Handle both camelCase and snake_case naming
     const sourceActor = message.sourceActor || message.source_actor || 'UE';
     const targetActor = message.targetActor || message.target_actor || 'gNB';
@@ -229,7 +229,7 @@ export const MscDiagram: React.FC<MscDiagramProps> = ({
         </text>
       </g>
     );
-  };
+  }, [actorPositions, selectedMessageIndex, showValidation, onMessageSelect]);
 
   const renderSequence = useMemo(() => {
     if (!sequence) return null;
@@ -264,7 +264,7 @@ export const MscDiagram: React.FC<MscDiagramProps> = ({
     }
 
     return elements;
-  }, [sequence, actors, actorPositions, diagramWidth, height, selectedMessageIndex, onMessageSelect, showValidation, collapsible]);
+  }, [sequence, actors, renderActor, renderMessage, diagramWidth, height, selectedMessageIndex, showValidation, collapsible]);
 
   return (
     <Paper withBorder p="md" style={{ height, overflow: 'auto' }}>

@@ -59,6 +59,7 @@ const mockMscEditorHook = {
   redo: vi.fn(),
   clearValidation: vi.fn(),
   loadAllSequences: vi.fn().mockResolvedValue(undefined),
+  isInitialized: true,
 };
 
 const renderMscEditor = () => {
@@ -99,7 +100,7 @@ describe('MscEditor - Basic Workflows', () => {
       };
 
       (mscSessionService.listSessions as any).mockResolvedValue([mockSession]);
-      
+
       // Step 2: Setup sequence
       const sequenceWithId = { ...mockSequence, id: 'seq-1' };
       (useMscEditor as any).mockReturnValue({
@@ -155,7 +156,7 @@ describe('MscEditor - Basic Workflows', () => {
       // Update sequence name
       const nameInput = screen.getByLabelText('Sequence name');
       expect(nameInput).toBeInTheDocument();
-      
+
       fireEvent.change(nameInput, { target: { value: 'New Name' } });
       fireEvent.blur(nameInput);
 
