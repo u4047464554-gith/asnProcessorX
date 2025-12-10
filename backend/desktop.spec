@@ -1,7 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 import sys
 import os
-from PyInstaller.utils.hooks import copy_metadata
+from PyInstaller.utils.hooks import copy_metadata, collect_all
 
 block_cipher = None
 
@@ -11,14 +11,18 @@ datas += copy_metadata('uvicorn')
 datas += copy_metadata('fastapi')
 datas += copy_metadata('asn1tools')
 
-# We need to add the project root to pathex so 'backend' package can be found
+# Collect all of asn1tools (including source from editable install)
+asn1tools_datas, asn1tools_binaries, asn1tools_hiddenimports = collect_all('asn1tools')
+datas += asn1tools_datas
+
+# We need to add the project root and sources/asn1tools to pathex
 # Assuming we run pyinstaller from 'backend/' directory, '..' is the root.
-pathex = [os.path.abspath('..')]
+pathex = [os.path.abspath('..'), os.path.abspath('../sources/asn1tools')]
 
 a = Analysis(
     ['desktop_main.py'],
     pathex=pathex,
-    binaries=[],
+    binaries=asn1tools_binaries,
     datas=datas,
     hiddenimports=[
         'uvicorn.logging',
@@ -43,7 +47,22 @@ a = Analysis(
         'backend.core.serialization',
         'backend.core.asn1_runtime',
         'backend.core.type_tree',
-    ],
+        # asn1tools and its submodules (editable install from sources/asn1tools)
+        'asn1tools',
+        'asn1tools.parser',
+        'asn1tools.compiler',
+        'asn1tools.codecs',
+        'asn1tools.codecs.per',
+        'asn1tools.codecs.uper',
+        'asn1tools.codecs.ber',
+        'asn1tools.codecs.der',
+        'asn1tools.codecs.jer',
+        'asn1tools.codecs.oer',
+        'asn1tools.codecs.xer',
+        'asn1tools.codecs.compiler',
+        'asn1tools.codecs.constraints_checker',
+        'asn1tools.source',
+    ] + asn1tools_hiddenimports,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
