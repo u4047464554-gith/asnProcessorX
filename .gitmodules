@@ -1,0 +1,7 @@
+[submodule "sources/asn1tools"]
+	path = sources/asn1tools
+	url = https://github.com/eerimoq/asn1tools.git
+
+[submodule "sources/asn1c/repo"]
+	path = sources/asn1c/repo
+	url = https://github.com/vlm/asn1c.git
