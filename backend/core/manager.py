@@ -62,6 +62,8 @@ class AsnManager:
             if os.path.isabs(path):
                 if os.path.exists(path):
                     paths.append(path)
+                else:
+                    logger.warning(f"Configured absolute path does not exist: {path}")
             else:
                 # 1. Try relative to base_dir (sys._MEIPASS when frozen)
                 abs_path = os.path.join(base_dir, path)
@@ -69,22 +71,35 @@ class AsnManager:
                     paths.append(abs_path)
                 
                 # 2. If frozen, ALSO try relative to the executable (external overrides)
+                is_found = False
+                if os.path.exists(abs_path):
+                    is_found = True
+                
                 if frozen:
                     exe_dir = os.path.dirname(sys.executable)
                     exe_path = os.path.join(exe_dir, path)
-                    if os.path.exists(exe_path) and exe_path not in paths:
-                        paths.append(exe_path)
+                    if os.path.exists(exe_path):
+                        if exe_path not in paths:
+                            paths.append(exe_path)
+                        is_found = True
 
                 # 3. Fallback: Try relative to CWD if different
                 cwd_path = os.path.join(os.getcwd(), path)
-                if os.path.exists(cwd_path) and cwd_path not in paths:
-                    paths.append(cwd_path)
+                if os.path.exists(cwd_path):
+                    if cwd_path not in paths:
+                        paths.append(cwd_path)
+                    is_found = True
                 
                 # 4. Fallback: Try ../path (development mode)
                 dev_path = os.path.join("..", path)
-                if os.path.exists(dev_path) and dev_path not in paths:
-                    paths.append(dev_path)
-                    
+                if os.path.exists(dev_path):
+                    if dev_path not in paths:
+                        paths.append(dev_path)
+                    is_found = True
+                
+                if not is_found:
+                    logger.warning(f"Configured relative path not found: {path} (checked base={base_dir}, cwd={os.getcwd()})")
+
         return paths
 
     def _stat_entry(self, path: str) -> Tuple[float, int]:
