@@ -5,11 +5,18 @@ from PyInstaller.utils.hooks import copy_metadata, collect_all
 
 block_cipher = None
 
-# Collect metadata for packages that use entry points or metadata (like versions)
+# Helper to safely copy metadata
+def safe_copy_metadata(package_name):
+    try:
+        return copy_metadata(package_name)
+    except Exception as e:
+        print(f"Warning: Could not copy metadata for {package_name}: {e}")
+        return []
+
 datas = []
-datas += copy_metadata('uvicorn')
-datas += copy_metadata('fastapi')
-datas += copy_metadata('asn1tools')
+datas += safe_copy_metadata('uvicorn')
+datas += safe_copy_metadata('fastapi')
+datas += safe_copy_metadata('asn1tools')
 
 # Collect all of asn1tools (including source from editable install)
 asn1tools_datas, asn1tools_binaries, asn1tools_hiddenimports = collect_all('asn1tools')
