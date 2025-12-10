@@ -20,6 +20,8 @@ export default defineConfig({
       reporter: ['text', 'html'],
     },
     reporters: ['verbose'],
+    // Ignore unhandled errors from Mantine component cleanup (Select/Combobox timers)
+    dangerouslyIgnoreUnhandledErrors: true,
   },
   build: {
     chunkSizeWarningLimit: 1000,
