@@ -5,8 +5,11 @@ import json
 import re
 import threading
 import time
+import logging
 from dataclasses import dataclass, asdict
 from typing import Dict, Optional, List, Any, Tuple
+
+logger = logging.getLogger(__name__)
 
 from backend.core.asn1_runtime import asn1tools
 from backend.core.config import config_manager
@@ -125,7 +128,7 @@ class AsnManager:
         paths = self._current_paths or self._resolve_specs_paths()
         new_snapshot = self._capture_snapshot(paths)
         if new_snapshot != self._snapshot_state:
-            print("[AsnManager] Detected ASN.1 spec changes, reloading...")
+            logger.info("[AsnManager] Detected ASN.1 spec changes, reloading...")
             self._load_protocols_locked(paths)
         else:
             self._last_snapshot_check = now
@@ -140,7 +143,7 @@ class AsnManager:
         Returns a dict of protocol_name -> error_message for any failures.
         """
         search_paths = search_paths or self._resolve_specs_paths()
-        print(f"[AsnManager] Scanning paths: {search_paths}")
+        logger.info(f"[AsnManager] Scanning paths: {search_paths}")
         
         # We use temporary dicts to build the new state
         # If a protocol fails to compile, we try to retain the old version
@@ -171,7 +174,7 @@ class AsnManager:
             if direct_asn_files:
                 # Treat this directory itself as a protocol
                 protocol = os.path.basename(specs_dir)
-                print(f"Detected defined protocol in: {specs_dir} (name: {protocol})")
+                logger.info(f"Detected defined protocol in: {specs_dir} (name: {protocol})")
                 
                 try:
                     compiler = asn1tools.compile_files(direct_asn_files, codec='per')
@@ -199,9 +202,9 @@ class AsnManager:
                     if loaded_examples:
                         new_examples[protocol] = loaded_examples
                     
-                    print(f"Successfully compiled direct protocol {protocol}")
+                    logger.info(f"Successfully compiled direct protocol {protocol}")
                 except Exception as e:
-                    print(f"Error compiling direct protocol {protocol}: {e}")
+                    logger.error(f"Error compiling direct protocol {protocol}: {e}")
                     errors[protocol] = str(e)
             
             # Also scan subdirectories (normal structure)
@@ -213,7 +216,7 @@ class AsnManager:
                 asn_files = sorted(glob.glob(os.path.join(proto_path, "*.asn")))
                 
                 if asn_files:
-                    print(f"Compiling protocol: {protocol} with files: {asn_files}")
+                    logger.info(f"Compiling protocol: {protocol} with files: {asn_files}")
                     try:
                         compiler = asn1tools.compile_files(asn_files, codec='per')
                         new_compilers[protocol] = compiler
@@ -236,19 +239,19 @@ class AsnManager:
                                     name = os.path.splitext(os.path.basename(jf))[0]
                                     loaded_examples[name] = data
                             except Exception as e:
-                                print(f"Warning: Failed to load example {jf}: {e}")
+                                logger.warning(f"Failed to load example {jf}: {e}")
                         
                         if loaded_examples:
                             new_examples[protocol] = loaded_examples
-                            print(f"Loaded {len(loaded_examples)} examples for {protocol}")
+                            logger.info(f"Loaded {len(loaded_examples)} examples for {protocol}")
 
-                        print(f"Successfully compiled {protocol}")
+                        logger.info(f"Successfully compiled {protocol}")
                     except Exception as e:
-                        print(f"Error compiling {protocol}: {e}")
+                        logger.error(f"Error compiling {protocol}: {e}")
                         errors[protocol] = str(e)
                         # Retain old version if available
                         if protocol in self.compilers:
-                            print(f"Retaining previous version of {protocol}")
+                            logger.warning(f"Retaining previous version of {protocol}")
                             new_compilers[protocol] = self.compilers[protocol]
                             new_metadata[protocol] = self.metadata[protocol]
                             if protocol in self.examples:

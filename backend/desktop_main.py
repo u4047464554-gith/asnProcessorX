@@ -8,22 +8,6 @@ import logging
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, HTMLResponse
 
-# Add the current directory to sys.path to ensure we can import 'backend' if we are running from root
-# But in PyInstaller, sys.path is handled differently.
-# If we added '..' to pathex, we should be able to import 'backend.main'.
-
-# Try importing backend.main
-try:
-    from backend.main import app
-except ImportError:
-    # Fallback: if we are running as a script inside the bundle where 'backend' is flattened?
-    # Or if we are running from source in backend/ dir?
-    try:
-        from main import app
-    except ImportError as e:
-        # This will be caught by the logger below
-        raise ImportError(f"Could not import backend.main or main: {e}")
-
 # Setup Logging
 log_dir = os.path.join(os.environ["USERPROFILE"], "AsnProcessorLogs")
 if not os.path.exists(log_dir):
@@ -41,6 +25,22 @@ logging.basicConfig(
     filemode='w'
 )
 logger = logging.getLogger(__name__)
+
+# Add the current directory to sys.path to ensure we can import 'backend' if we are running from root
+# But in PyInstaller, sys.path is handled differently.
+# If we added '..' to pathex, we should be able to import 'backend.main'.
+
+# Try importing backend.main
+try:
+    from backend.main import app
+except ImportError:
+    # Fallback: if we are running as a script inside the bundle where 'backend' is flattened?
+    # Or if we are running from source in backend/ dir?
+    try:
+        from main import app
+    except ImportError as e:
+        # This will be caught by the logger below
+        raise ImportError(f"Could not import backend.main or main: {e}")
 
 def get_free_port():
     """Find a free port on localhost."""
