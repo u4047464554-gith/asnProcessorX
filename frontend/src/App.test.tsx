@@ -248,7 +248,7 @@ describe('App View', () => {
         (useAsnProcessor as any).mockReturnValue({ ...mockHook, setEditorMode });
         renderApp();
 
-        fireEvent.click(screen.getByText('Raw'));
+        fireEvent.click(screen.getByText('Raw JSON'));
         expect(setEditorMode).toHaveBeenCalledWith('raw');
     });
 
