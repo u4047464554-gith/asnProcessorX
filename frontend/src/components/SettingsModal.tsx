@@ -95,7 +95,16 @@ export function SettingsModal({ opened, onClose, currentTheme, onThemeChange }: 
 
                 <Divider my="sm" />
 
-                <Title order={5}>ASN.1 Specifications</Title>
+                <Group justify="space-between" align="center">
+                    <Title order={5}>ASN.1 Specifications</Title>
+                    <Button variant="subtle" size="xs" onClick={() => {
+                        if (!specsDirs.includes('asn_specs')) {
+                            setSpecsDirs([...specsDirs, 'asn_specs']);
+                        }
+                    }}>
+                        Restore Default Protocols
+                    </Button>
+                </Group>
                 <Text size="sm" c="dimmed">
                     Add directories where your .asn files are located. Each subdirectory will be treated as a protocol.
                 </Text>
