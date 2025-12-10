@@ -15,6 +15,9 @@ datas += copy_metadata('asn1tools')
 asn1tools_datas, asn1tools_binaries, asn1tools_hiddenimports = collect_all('asn1tools')
 datas += asn1tools_datas
 
+# Add asn_specs directory (source_path, dest_path)
+datas += [('../asn_specs', 'asn_specs')]
+
 # We need to add the project root and sources/asn1tools to pathex
 # Assuming we run pyinstaller from 'backend/' directory, '..' is the root.
 pathex = [os.path.abspath('..'), os.path.abspath('../sources/asn1tools')]

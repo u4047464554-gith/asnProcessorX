@@ -44,26 +44,43 @@ class AsnManager:
         config = config_manager.get()
         paths = []
         
-        # If running frozen, we might want to look relative to executable for default 'asn_specs'
-        base_dir = os.getcwd()
-        if getattr(sys, 'frozen', False):
-            base_dir = os.path.dirname(sys.executable)
+        # If running frozen, we identify the install/bundle logic
+        frozen = getattr(sys, 'frozen', False)
+        base_dir = os.getcwd() # Default for non-frozen
+        
+        if frozen:
+            # Look in the extracted temp folder for bundled resources
+            if hasattr(sys, '_MEIPASS'):
+                base_dir = sys._MEIPASS
+            else:
+                base_dir = os.path.dirname(sys.executable)
             
         for path in config.specs_directories:
             if os.path.isabs(path):
                 if os.path.exists(path):
                     paths.append(path)
             else:
-                # Try relative to base_dir
+                # 1. Try relative to base_dir (sys._MEIPASS when frozen)
                 abs_path = os.path.join(base_dir, path)
                 if os.path.exists(abs_path):
                     paths.append(abs_path)
-                # Fallback: Try relative to CWD if different
-                elif os.path.exists(os.path.join(os.getcwd(), path)):
-                    paths.append(os.path.join(os.getcwd(), path))
-                # Fallback: Try ../path (development mode)
-                elif os.path.exists(os.path.join("..", path)):
-                    paths.append(os.path.join("..", path))
+                
+                # 2. If frozen, ALSO try relative to the executable (external overrides)
+                if frozen:
+                    exe_dir = os.path.dirname(sys.executable)
+                    exe_path = os.path.join(exe_dir, path)
+                    if os.path.exists(exe_path) and exe_path not in paths:
+                        paths.append(exe_path)
+
+                # 3. Fallback: Try relative to CWD if different
+                cwd_path = os.path.join(os.getcwd(), path)
+                if os.path.exists(cwd_path) and cwd_path not in paths:
+                    paths.append(cwd_path)
+                
+                # 4. Fallback: Try ../path (development mode)
+                dev_path = os.path.join("..", path)
+                if os.path.exists(dev_path) and dev_path not in paths:
+                    paths.append(dev_path)
                     
         return paths
 
@@ -136,7 +153,10 @@ class AsnManager:
         # Determine bundled dir
         base_dir = os.getcwd()
         if getattr(sys, 'frozen', False):
-            base_dir = os.path.dirname(sys.executable)
+            if hasattr(sys, '_MEIPASS'):
+                base_dir = sys._MEIPASS
+            else:
+                base_dir = os.path.dirname(sys.executable)
         
         bundled_dir_abs = os.path.abspath(os.path.join(base_dir, 'asn_specs'))
 
@@ -145,8 +165,46 @@ class AsnManager:
                 continue
             
             is_bundled = os.path.abspath(specs_dir) == bundled_dir_abs
-
-            # List subdirectories
+            
+            # Check if likely a direct protocol directory (contains .asn files)
+            direct_asn_files = sorted(glob.glob(os.path.join(specs_dir, "*.asn")))
+            if direct_asn_files:
+                # Treat this directory itself as a protocol
+                protocol = os.path.basename(specs_dir)
+                print(f"Detected defined protocol in: {specs_dir} (name: {protocol})")
+                
+                try:
+                    compiler = asn1tools.compile_files(direct_asn_files, codec='per')
+                    new_compilers[protocol] = compiler
+                    type_names = sorted(list(compiler.types.keys()))
+                    new_metadata[protocol] = ProtocolMetadata(
+                        name=protocol,
+                        files=[os.path.basename(path) for path in direct_asn_files],
+                        types=type_names,
+                        is_bundled=is_bundled
+                    )
+                    
+                    # Load JSON examples
+                    json_files = sorted(glob.glob(os.path.join(specs_dir, "*.json")))
+                    loaded_examples = {}
+                    for jf in json_files:
+                        try:
+                            with open(jf, 'r') as f:
+                                data = json.load(f)
+                                name = os.path.splitext(os.path.basename(jf))[0]
+                                loaded_examples[name] = data
+                        except Exception as e:
+                            print(f"Warning: Failed to load example {jf}: {e}")
+                    
+                    if loaded_examples:
+                        new_examples[protocol] = loaded_examples
+                    
+                    print(f"Successfully compiled direct protocol {protocol}")
+                except Exception as e:
+                    print(f"Error compiling direct protocol {protocol}: {e}")
+                    errors[protocol] = str(e)
+            
+            # Also scan subdirectories (normal structure)
             subdirs = [d for d in os.listdir(specs_dir) 
                        if os.path.isdir(os.path.join(specs_dir, d))]
 
