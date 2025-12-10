@@ -22,8 +22,10 @@ import {
     Divider,
     Badge
 } from '@mantine/core'
-import { IconSettings, IconLayoutSidebarRight, IconTrash, IconDeviceFloppy, IconDatabase, IconCopy, IconTimeline } from '@tabler/icons-react'
-import { Link, Routes, Route } from 'react-router-dom'
+// import { IconSettings, IconLayoutSidebarRight, IconTrash, IconDeviceFloppy, IconDatabase, IconCopy, IconTimeline } from '@tabler/icons-react'
+import { IconSettings, IconLayoutSidebarRight, IconTrash, IconDeviceFloppy, IconDatabase, IconCopy } from '@tabler/icons-react'
+// import { Link, Routes, Route } from 'react-router-dom'
+import { Routes, Route } from 'react-router-dom'
 import { BitInspectorPanel } from './components/trace/BitInspectorPanel'
 import { DefinitionTree } from './components/definition/DefinitionTree'
 import { SettingsModal } from './components/SettingsModal'
@@ -176,11 +178,14 @@ function AsnProcessor() {
                                     }
                                     rightSectionPointerEvents="auto"
                                 />
+                                {/* Feature: MSC Editor (Disabled)
                                 <Link to="/msc" style={{ textDecoration: 'none' }}>
                                     <Button variant="outline" size="xs" leftSection={<IconTimeline size="0.875rem" />}>
                                         MSC Editor
                                     </Button>
                                 </Link>
+                                */}
+                                {/* Feature: Edit Schema (Disabled)
                                 <Button
                                     variant="outline"
                                     size="xs"
@@ -191,6 +196,8 @@ function AsnProcessor() {
                                 >
                                     Edit Schema
                                 </Button>
+                                */}
+                                {/* Feature: Generate C Stubs (Disabled)
                                 <Button
                                     variant="outline"
                                     size="xs"
@@ -201,6 +208,7 @@ function AsnProcessor() {
                                 >
                                     Generate C Stubs
                                 </Button>
+                                */}
                                 <Button
                                     variant={inspectorOpen ? "filled" : "outline"}
                                     size="xs"
@@ -353,6 +361,7 @@ function AsnProcessor() {
                                                 {copiedJson && <Text size="xs" c="green" fw={500}>Copied!</Text>}
                                             </Group>
                                             <Group gap="xs">
+                                                {/* Feature: Hide/Show Schema (Disabled)
                                                 <Button
                                                     size="xs"
                                                     variant="subtle"
@@ -360,6 +369,7 @@ function AsnProcessor() {
                                                 >
                                                     {definitionOpen ? 'Hide Schema' : 'Show Schema'}
                                                 </Button>
+                                                */}
                                                 <SegmentedControl
                                                     size="xs"
                                                     value={editorMode}
