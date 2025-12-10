@@ -103,7 +103,7 @@ class TestMscRepository:
             )
         )
         
-        updated = repo.update_sequence(original)
+        repo.update_sequence(original)
         
         # Verify update persisted
         retrieved = repo.get_sequence(original.id)

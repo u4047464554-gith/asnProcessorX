@@ -29,7 +29,7 @@ log_dir = os.path.join(os.environ["USERPROFILE"], "AsnProcessorLogs")
 if not os.path.exists(log_dir):
     try:
         os.makedirs(log_dir)
-    except:
+    except Exception:
         log_dir = os.getcwd()
 
 log_file = os.path.join(log_dir, 'backend.log')

@@ -6,7 +6,6 @@ import os
 import sys
 import tempfile
 import shutil
-import pytest
 
 sys.path.append(os.getcwd())
 

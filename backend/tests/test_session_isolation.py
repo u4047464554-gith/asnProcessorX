@@ -8,8 +8,6 @@ This tests the critical requirement that:
 """
 import os
 import sys
-import pytest
-from datetime import datetime
 
 sys.path.append(os.getcwd())
 

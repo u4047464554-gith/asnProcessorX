@@ -340,7 +340,6 @@ class SequenceValidator(ISequenceValidator):
                 conflicts = self.config_tracker.detect_conflicts(identifier_name)
                 for conflict in conflicts:
                     # Find which messages have conflicting values
-                    conflicting_messages = []
                     value_to_messages = {}
                     
                     for msg_idx, msg in enumerate(sequence.messages):

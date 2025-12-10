@@ -6,15 +6,6 @@ def test_rrc_encoding_mismatch_repro(client):
     # Data: InitialUE-Identity payload (CHOICE -> Tuple)
     
     # This mimics what the frontend was sending when the state was desynchronized
-    mismatched_payload = {
-        "ue-Identity": {
-            "$choice": "randomValue",
-            "value": ["0x1122334455", 40]
-        }
-        # Missing other fields for RRCConnectionRequest, 
-        # and top level is treated as the CHOICE itself by deserialize if we are not careful?
-        # No, deserialize_asn1_data returns a dict for this input.
-    }
 
     # But the error message said "got ('randomValue', ...)". 
     # This means the INPUT to the encoder was a tuple.

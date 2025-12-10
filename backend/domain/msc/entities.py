@@ -200,7 +200,7 @@ class MscSequence:
             for identifier in self.tracked_identifiers.values():
                 if message_index in identifier.values:
                     # Remove the value - this would need immutable update
-                    new_values = {k: v for k, v in identifier.values.items() if k != message_index}
+                    {k: v for k, v in identifier.values.items() if k != message_index}
                     # Recreate with updated values (simplified)
                     pass  # Implementation would update the dataclass
     

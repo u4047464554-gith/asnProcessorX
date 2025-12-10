@@ -13,7 +13,7 @@ class TestIIdentifierDetector:
     def test_abstract_cannot_instantiate(self):
         """Test that the abstract interface cannot be instantiated."""
         with pytest.raises(TypeError):
-            detector = IIdentifierDetector()
+            IIdentifierDetector()
     
     def test_detect_identifiers_contract(self):
         """Test the detect_identifiers method contract with a mock implementation."""
@@ -39,7 +39,7 @@ class TestIIdentifierDetector:
 class TestIConfigurationTracker:
     def test_abstract_cannot_instantiate(self):
         with pytest.raises(TypeError):
-            tracker = IConfigurationTracker()
+            IConfigurationTracker()
     
     def test_track_value_contract(self):
         """Test track_value method returns TrackedIdentifier."""
@@ -78,7 +78,7 @@ class TestIConfigurationTracker:
 class TestISequenceValidator:
     def test_abstract_cannot_instantiate(self):
         with pytest.raises(TypeError):
-            validator = ISequenceValidator()
+            ISequenceValidator()
     
     def test_validate_sequence_contract(self):
         """Test validate_sequence returns list of ValidationResult."""
@@ -111,7 +111,7 @@ class TestISequenceValidator:
 class TestIStateMachine:
     def test_abstract_cannot_instantiate(self):
         with pytest.raises(TypeError):
-            state_machine = IStateMachine()
+            IStateMachine()
     
     def test_get_current_state_contract(self):
         """Test get_current_state returns state string."""
@@ -147,7 +147,7 @@ class TestIStateMachine:
 class TestIMscRepository:
     def test_abstract_cannot_instantiate(self):
         with pytest.raises(TypeError):
-            repo = IMscRepository()
+            IMscRepository()
     
     def test_create_sequence_contract(self):
         """Test create_sequence returns MscSequence."""

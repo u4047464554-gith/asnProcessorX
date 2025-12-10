@@ -201,7 +201,8 @@ class TestMscSequenceWorkflows:
         # Verify the complete flow
         assert len(final_sequence['messages']) == 3
         # Helper to get property with fallback
-        get_prop = lambda msg, snake, camel: msg.get(snake, msg.get(camel))
+        def get_prop(msg, snake, camel):
+            return msg.get(snake, msg.get(camel))
         
         assert get_prop(final_sequence['messages'][0], 'type_name', 'typeName') == 'RRCConnectionRequest'
         assert get_prop(final_sequence['messages'][0], 'source_actor', 'sourceActor') == 'UE'

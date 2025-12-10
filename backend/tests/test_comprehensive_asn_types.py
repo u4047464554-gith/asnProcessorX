@@ -137,9 +137,9 @@ class TestPrimitiveTypes:
             'enumVal': 'green'
         }
         converted = convert_to_python_asn1(input_data, type_obj)
-        assert converted['boolVal'] == True
+        assert converted['boolVal']
         assert converted['intVal'] == 12345
-        assert converted['nullVal'] == None
+        assert converted['nullVal'] is None
         assert converted['oidVal'] == '1.2.840.113549.1.1.1'
         assert converted['enumVal'] == 'green'
         
@@ -149,7 +149,7 @@ class TestPrimitiveTypes:
         
         # Verify round-trip
         decoded = compiler.decode('Primitives', encoded)
-        assert decoded['boolVal'] == True
+        assert decoded['boolVal']
         assert decoded['intVal'] == 12345
         assert decoded['enumVal'] == 'green'
 
@@ -431,7 +431,7 @@ class TestRoundTrip:
         decoded = compiler.decode('Primitives', encoded)
         serialized = serialize_asn1_data(decoded)
         
-        assert serialized['boolVal'] == True
+        assert serialized['boolVal']
         assert serialized['intVal'] == 12345
         assert serialized['enumVal'] == 'blue'
     
@@ -445,7 +445,7 @@ class TestRoundTrip:
         
         assert serialized['$choice'] == 'seqOption'
         assert serialized['value']['a'] == 1
-        assert serialized['value']['b'] == True
+        assert serialized['value']['b']
         assert serialized['value']['c'] == 'test'
     
     def test_octet_string_round_trip(self, compiler):

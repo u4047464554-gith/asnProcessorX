@@ -116,7 +116,7 @@ def test_demo_payload_roundtrip(client):
             
             # Compare Data
             # Note: backend serialization might convert tuples to lists, etc.
-            decoded_data = decode_resp.json()["data"]
+            decode_resp.json()["data"]
             # We don't strict assert equality here because of potential type diffs (tuple vs list)
             # but we assume if it decodes without error, it's good for this smoke test.
             # For strictness, we could normalize.

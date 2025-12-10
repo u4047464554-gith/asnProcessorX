@@ -38,7 +38,7 @@ class MscRepository(IMscRepository):
                         valid_index[seq_id] = path
                 self._index = valid_index
                 return
-            except:
+            except Exception:
                 pass
         # Rebuild index by scanning
         self._rebuild_index()
@@ -49,7 +49,7 @@ class MscRepository(IMscRepository):
         try:
             with open(index_path, 'w') as f:
                 json.dump(self._index, f, indent=2)
-        except:
+        except Exception:
             pass  # Non-critical
     
     def _rebuild_index(self) -> None:
@@ -70,7 +70,7 @@ class MscRepository(IMscRepository):
                         data = json.load(f)
                     if 'id' in data and 'protocol' in data:  # It's a sequence file
                         self._index[data['id']] = item_path
-                except:
+                except Exception:
                     continue
             elif os.path.isdir(item_path) and not item.startswith('.'):
                 self._scan_directory_for_index(item_path)
@@ -413,7 +413,7 @@ class MscRepository(IMscRepository):
             raise ValueError(f"Sequence {sequence.id} not found")
         
         # Find old file location
-        old_file = self._find_sequence_file(sequence.id)
+        self._find_sequence_file(sequence.id)
         
         # Use versioned filename
         sequence_file = self._get_versioned_file_path(
@@ -679,7 +679,7 @@ class MscRepository(IMscRepository):
                             else:
                                 os.remove(file_path)  # Keep existing, remove old
                                 reorganized += 1
-                        except:
+                        except Exception:
                             os.rename(file_path, new_path)
                             reorganized += 1
                     else:

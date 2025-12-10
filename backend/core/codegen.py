@@ -112,7 +112,7 @@ class CodegenService:
             cmd = [asn1c_exe] + cmd_flags + asn_files
             
             try:
-                result = subprocess.run(
+                subprocess.run(
                     cmd,
                     cwd=temp_dir,
                     capture_output=True,

@@ -8,9 +8,6 @@ Tests for lower coverage modules:
 """
 import os
 import sys
-import pytest
-import tempfile
-import shutil
 
 sys.path.append(os.getcwd())
 

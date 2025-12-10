@@ -253,7 +253,6 @@ class RRCStateMachine(IStateMachine):
         
         for i, message in enumerate(sequence.messages):
             # Determine if this is a UE or gNB message based on actors
-            is_ue_message = message.source_actor in ['UE', 'user']
             
             # Check if message is valid from current state
             is_valid = self.is_valid_transition(
