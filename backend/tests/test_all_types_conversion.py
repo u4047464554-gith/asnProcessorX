@@ -1,5 +1,5 @@
 import pytest
-import asn1tools
+from backend.core.asn1_runtime import asn1tools
 from backend.core.converter import convert_to_python_asn1
 
 ASN_SPEC = """

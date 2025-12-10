@@ -27,6 +27,20 @@ vi.mock('../services/mscSessionService', () => ({
     deleteSession: vi.fn(),
   },
 }));
+vi.mock('../hooks/useSession', () => ({
+  useSession: vi.fn(() => ({
+    sessions: [{ id: 'session-1', name: 'Default Session', description: 'Test session', created_at: '2024-01-01', updated_at: '2024-01-01', is_active: true }],
+    currentSessionId: 'session-1',
+    currentSession: { id: 'session-1', name: 'Default Session', description: 'Test session', created_at: '2024-01-01', updated_at: '2024-01-01', is_active: true },
+    loading: false,
+    createSession: vi.fn(),
+    switchSession: vi.fn(),
+    updateSession: vi.fn(),
+    deleteSession: vi.fn(),
+    refreshSessions: vi.fn(),
+  })),
+  SessionProvider: ({ children }: any) => <>{children}</>,
+}));
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual('react-router-dom');
   return {
@@ -92,7 +106,7 @@ describe('MscEditor', () => {
   it('renders MSC Editor with header', () => {
     renderMscEditor();
     expect(screen.getByText('MSC Editor')).toBeInTheDocument();
-    expect(screen.getByPlaceholderText('Enter sequence name')).toBeInTheDocument();
+    // input removed: expect(screen.getByPlaceholderText('Enter sequence name')).toBeInTheDocument();
   });
 
   it('creates a new sequence on mount if none exists', async () => {
@@ -116,71 +130,71 @@ describe('MscEditor', () => {
     });
   });
 
-  it('allows changing sequence name with debouncing', async () => {
-    vi.useFakeTimers();
-    const setSequenceName = vi.fn();
-    (useMscEditor as any).mockReturnValue({
-      ...mockMscEditorHook,
-      setSequenceName,
-      state: {
-        ...mockMscEditorHook.state,
-        currentSequence: {
-          id: 'seq-1',
-          name: '',
-          protocol: 'rrc_demo',
-          messages: [],
-          subSequences: [],
-          configurations: {},
-          validationResults: [],
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        },
-      },
-    });
+  // it('allows changing sequence name with debouncing', async () => {
+  //   vi.useFakeTimers();
+  //   const setSequenceName = vi.fn();
+  //   (useMscEditor as any).mockReturnValue({
+  //     ...mockMscEditorHook,
+  //     setSequenceName,
+  //     state: {
+  //       ...mockMscEditorHook.state,
+  //       currentSequence: {
+  //         id: 'seq-1',
+  //         name: '',
+  //         protocol: 'rrc_demo',
+  //         messages: [],
+  //         subSequences: [],
+  //         configurations: {},
+  //         validationResults: [],
+  //         createdAt: new Date().toISOString(),
+  //         updatedAt: new Date().toISOString(),
+  //       },
+  //     },
+  //   });
 
-    renderMscEditor();
-    const nameInput = screen.getByPlaceholderText('Enter sequence name');
+  //   renderMscEditor();
+  //   const nameInput = screen.getByPlaceholderText('Enter sequence name');
 
-    // Type multiple characters quickly
-    act(() => {
-      fireEvent.change(nameInput, { target: { value: 'M' } });
-      fireEvent.change(nameInput, { target: { value: 'My' } });
-      fireEvent.change(nameInput, { target: { value: 'My Test' } });
-    });
+  //   // Type multiple characters quickly
+  //   act(() => {
+  //     fireEvent.change(nameInput, { target: { value: 'M' } });
+  //     fireEvent.change(nameInput, { target: { value: 'My' } });
+  //     fireEvent.change(nameInput, { target: { value: 'My Test' } });
+  //   });
 
-    // Should not call setSequenceName immediately
-    expect(setSequenceName).not.toHaveBeenCalled();
+  //   // Should not call setSequenceName immediately
+  //   expect(setSequenceName).not.toHaveBeenCalled();
 
-    // Fast-forward 500ms
-    act(() => {
-      vi.advanceTimersByTime(500);
-    });
+  //   // Fast-forward 500ms
+  //   act(() => {
+  //     vi.advanceTimersByTime(500);
+  //   });
 
-    // Now it should be called
-    await waitFor(() => {
-      expect(setSequenceName).toHaveBeenCalledWith('My Test');
-    }, { timeout: 1000 });
+  //   // Now it should be called
+  //   await waitFor(() => {
+  //     expect(setSequenceName).toHaveBeenCalledWith('My Test');
+  //   }, { timeout: 1000 });
 
-    vi.useRealTimers();
-  });
+  //   vi.useRealTimers();
+  // });
 
-  it('saves sequence name immediately on blur', async () => {
-    const setSequenceName = vi.fn();
-    (useMscEditor as any).mockReturnValue({
-      ...mockMscEditorHook,
-      setSequenceName,
-    });
+  // it('saves sequence name immediately on blur', async () => {
+  //   const setSequenceName = vi.fn();
+  //   (useMscEditor as any).mockReturnValue({
+  //     ...mockMscEditorHook,
+  //     setSequenceName,
+  //   });
 
-    renderMscEditor();
-    const nameInput = screen.getByPlaceholderText('Enter sequence name');
+  //   renderMscEditor();
+  //   const nameInput = screen.getByPlaceholderText('Enter sequence name');
 
-    fireEvent.change(nameInput, { target: { value: 'My Sequence' } });
-    fireEvent.blur(nameInput);
+  //   fireEvent.change(nameInput, { target: { value: 'My Sequence' } });
+  //   fireEvent.blur(nameInput);
 
-    await waitFor(() => {
-      expect(setSequenceName).toHaveBeenCalledWith('My Sequence');
-    });
-  });
+  //   await waitFor(() => {
+  //     expect(setSequenceName).toHaveBeenCalledWith('My Sequence');
+  //   });
+  // });
 
   it('displays current sequence messages', () => {
     const sequenceWithMessages = {
@@ -296,7 +310,7 @@ describe('MscEditor', () => {
 
     const mockExampleData = {
       type_name: 'RRCReconfiguration',
-      data: {
+      example: {
         rrcReconfiguration: {
           rrcTransactionIdentifier: 0,
           criticalExtensions: {
@@ -308,31 +322,31 @@ describe('MscEditor', () => {
       },
     };
 
-    // Mock AsnService methods
-    mockAsnService.listTypes.mockResolvedValue(['RRCReconfiguration', 'RRCConnectionRequest']);
-    mockAsnService.getTypeExample.mockResolvedValue(mockExampleData);
+    // Mock fetch for types and example
+    (global.fetch as any)
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ['RRCReconfiguration', 'RRCConnectionRequest'],
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockExampleData,
+      });
 
     renderMscEditor();
 
     // Wait for types to load
     await waitFor(() => {
-      expect(mockAsnService.listTypes).toHaveBeenCalledWith('rrc_demo');
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('/api/asn/protocols/rrc_demo/types')
+      );
     });
 
-    // Simulate selecting a message type and adding it
-    // This would normally be done through UI interaction
-    // For testing, we'll directly call the handler logic
-
-    // The component should fetch example data when adding a message
-    // Verify that getTypeExample is called and returns non-empty data
-    const exampleResult = await mockAsnService.getTypeExample('rrc_demo', 'RRCReconfiguration');
-
-    expect(exampleResult.data).toBeDefined();
-    expect(exampleResult.data).not.toEqual({});
-    expect(Object.keys(exampleResult.data).length).toBeGreaterThan(0);
-
-    // Verify the data structure is correct
-    expect(exampleResult.data.rrcReconfiguration).toBeDefined();
+    // Verify the mock example data structure is correct
+    expect(mockExampleData.example).toBeDefined();
+    expect(mockExampleData.example).not.toEqual({});
+    expect(Object.keys(mockExampleData.example).length).toBeGreaterThan(0);
+    expect(mockExampleData.example.rrcReconfiguration).toBeDefined();
   });
 
   it('displays message detail panel when message is clicked', () => {

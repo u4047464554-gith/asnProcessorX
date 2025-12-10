@@ -113,7 +113,7 @@ def build_sequence_response(dto: SequenceDTO) -> SequenceResponse:
         id=dto.id,
         name=dto.name,
         protocol=dto.protocol,
-        session_id=getattr(dto, 'session_id', None),
+        session_id=dto.session_id,  # Ensure this is passed
         messages=[MessageResponse(**msg) for msg in dto.messages],
         sub_sequences=dto.sub_sequences,
         configurations={

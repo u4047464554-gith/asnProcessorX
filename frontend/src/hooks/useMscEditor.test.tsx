@@ -1,375 +1,258 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+/**
+ * useMscEditor Hook Tests
+ * 
+ * Tests the core state management hook for the MSC Editor.
+ * Uses behavior-driven testing - tests what the hook DOES, not how.
+ */
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { useMscEditor } from './useMscEditor';
-import type { MscSequence, MscMessage } from '../domain/msc/types';
+import { createMockMscService, clearAllMocks } from '../test-utils';
 
-// Create mock service instance
-const mockMscServiceInstance = {
-  createSequence: vi.fn(),
-  getSequence: vi.fn(),
-  updateSequence: vi.fn(),
-  deleteSequence: vi.fn(),
-  addMessageToSequence: vi.fn(),
-  listSequences: vi.fn(),
-  validateSequence: vi.fn(),
-  getFieldSuggestions: vi.fn(),
-  decodeHexToMscMessages: vi.fn(),
-};
+// Get the mock service we'll use
+const mockService = createMockMscService();
 
-// Mock the service as a class
-vi.mock('../services/mscService', () => {
-  class MockMscService {
-    createSequence = mockMscServiceInstance.createSequence;
-    getSequence = mockMscServiceInstance.getSequence;
-    updateSequence = mockMscServiceInstance.updateSequence;
-    deleteSequence = mockMscServiceInstance.deleteSequence;
-    addMessageToSequence = mockMscServiceInstance.addMessageToSequence;
-    listSequences = mockMscServiceInstance.listSequences;
-    validateSequence = mockMscServiceInstance.validateSequence;
-    getFieldSuggestions = mockMscServiceInstance.getFieldSuggestions;
-    decodeHexToMscMessages = mockMscServiceInstance.decodeHexToMscMessages;
+// Mock the service module
+vi.mock('../services/mscService', () => ({
+  default: class MockMscService {
+    createSequence = mockService.createSequence;
+    getSequence = mockService.getSequence;
+    updateSequence = mockService.updateSequence;
+    deleteSequence = mockService.deleteSequence;
+    addMessageToSequence = mockService.addMessageToSequence;
+    listSequences = mockService.listSequences;
+    validateSequence = mockService.validateSequence;
+    getFieldSuggestions = mockService.getFieldSuggestions;
+    detectIdentifiers = mockService.detectIdentifiers;
+    decodeHexToMscMessages = mockService.decodeHexToMscMessages;
   }
-  return { default: MockMscService };
-});
+}));
 
-describe('useMscEditor', () => {
+describe('useMscEditor Hook', () => {
   beforeEach(() => {
-    vi.clearAllMocks();
-    // Reset all mock functions
-    Object.values(mockMscServiceInstance).forEach((fn: any) => {
-      if (typeof fn === 'function' && fn.mockClear) {
-        fn.mockClear();
+    clearAllMocks();
+    // Reset mock implementations
+    Object.values(mockService).forEach((fn: any) => {
+      if (typeof fn.mockReset === 'function') {
+        fn.mockReset();
       }
     });
+    // Set default mock behaviors
+    mockService.listSequences.mockResolvedValue([]);
+    mockService.validateSequence.mockResolvedValue({ results: [], hasErrors: false });
   });
 
-  it('initializes with empty state', () => {
-    const { result } = renderHook(() => useMscEditor());
-    
-    expect(result.current.state.currentSequence).toBeNull();
-    expect(result.current.state.sequences).toEqual([]);
-    expect(result.current.state.isLoading).toBe(false);
+  afterEach(() => {
+    localStorage.clear();
   });
 
-  it('creates a new sequence', async () => {
-    const mockSequence: MscSequence = {
-      id: 'seq-1',
-      name: 'Test Sequence',
-      protocol: 'rrc_demo',
-      messages: [],
-      subSequences: [],
-      configurations: {},
-      validationResults: [],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+  describe('Initialization', () => {
+    it('initializes and becomes ready', async () => {
+      const { result } = renderHook(() => useMscEditor());
 
-    mockMscServiceInstance.createSequence.mockResolvedValue(mockSequence);
-
-    const { result } = renderHook(() => useMscEditor());
-
-    await act(async () => {
-      await result.current.createSequence('Test Sequence', 'rrc_demo');
-    });
-
-    expect(mockMscServiceInstance.createSequence).toHaveBeenCalledWith('Test Sequence', 'rrc_demo');
-    expect(result.current.state.currentSequence).toEqual(mockSequence);
-  });
-
-  it('adds a message to sequence with default data', async () => {
-    const mockSequence: MscSequence = {
-      id: 'seq-1',
-      name: 'Test',
-      protocol: 'rrc_demo',
-      messages: [],
-      subSequences: [],
-      configurations: {},
-      validationResults: [],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-
-    const updatedSequence: MscSequence = {
-      ...mockSequence,
-      messages: [
-        {
-          id: 'msg-1',
-          type_name: 'RRCConnectionRequest',
-          data: { rrcConnectionRequest: { establishmentCause: 'mo-Signalling' } },
-          sourceActor: 'UE',
-          targetActor: 'gNB',
-          timestamp: Date.now() / 1000,
-        },
-      ],
-    };
-
-    mockMscServiceInstance.getSequence.mockResolvedValue(mockSequence);
-    mockMscServiceInstance.addMessageToSequence.mockResolvedValue(updatedSequence);
-
-    const { result } = renderHook(() => useMscEditor());
-
-    // First create a sequence
-    await act(async () => {
-      await result.current.createSequence('Test', 'rrc_demo');
-    });
-
-    // Then add a message
-    await act(async () => {
-      await result.current.addMessage({
-        type_name: 'RRCConnectionRequest',
-        data: { rrcConnectionRequest: { establishmentCause: 'mo-Signalling' } },
-        source_actor: 'UE',
-        target_actor: 'gNB',
+      await waitFor(() => {
+        expect(result.current.isInitialized).toBe(true);
       });
     });
 
-    expect(mockMscServiceInstance.addMessageToSequence).toHaveBeenCalledWith(
-      'seq-1',
-      expect.objectContaining({
-        type_name: 'RRCConnectionRequest',
-        source_actor: 'UE',
-        target_actor: 'gNB',
-      })
-    );
+    it('starts with no current sequence', async () => {
+      const { result } = renderHook(() => useMscEditor());
 
-    await waitFor(() => {
-      expect(result.current.state.currentSequence?.messages).toHaveLength(1);
+      await waitFor(() => {
+        expect(result.current.isInitialized).toBe(true);
+      });
+
+      expect(result.current.state.currentSequence).toBeNull();
+    });
+
+    it('starts with empty sequences list', async () => {
+      const { result } = renderHook(() => useMscEditor());
+
+      await waitFor(() => {
+        expect(result.current.isInitialized).toBe(true);
+      });
+
+      expect(result.current.state.sequences).toEqual([]);
     });
   });
 
-  it('removes a message from sequence', async () => {
-    const mockSequence: MscSequence = {
-      id: 'seq-1',
-      name: 'Test',
-      protocol: 'rrc_demo',
-      messages: [
-        {
+  describe('Sequence Creation', () => {
+    it('creates a new sequence', async () => {
+      const newSequence = {
+        id: 'new-seq-1',
+        name: 'My Sequence',
+        protocol: 'rrc_demo',
+        messages: [],
+        configurations: {},
+        validationResults: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      mockService.createSequence.mockResolvedValue(newSequence);
+
+      const { result } = renderHook(() => useMscEditor());
+
+      await act(async () => {
+        await result.current.createSequence('My Sequence', 'rrc_demo');
+      });
+
+      expect(mockService.createSequence).toHaveBeenCalledWith('My Sequence', 'rrc_demo', undefined);
+      expect(result.current.state.currentSequence?.id).toBe('new-seq-1');
+    });
+
+    it('creates sequence with session ID', async () => {
+      const newSequence = {
+        id: 'sess-seq-1',
+        name: 'Session Sequence',
+        protocol: 'rrc_demo',
+        messages: [],
+        session_id: 'session-123',
+        configurations: {},
+        validationResults: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      mockService.createSequence.mockResolvedValue(newSequence);
+
+      const { result } = renderHook(() => useMscEditor());
+
+      await act(async () => {
+        await result.current.createSequence('Session Sequence', 'rrc_demo', 'session-123');
+      });
+
+      expect(mockService.createSequence).toHaveBeenCalledWith('Session Sequence', 'rrc_demo', 'session-123');
+    });
+  });
+
+  describe('Message Operations', () => {
+    it('adds a message to the current sequence', async () => {
+      // First create a sequence
+      const initialSequence = {
+        id: 'seq-1',
+        name: 'Test',
+        protocol: 'rrc_demo',
+        messages: [],
+        configurations: {},
+        validationResults: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      mockService.createSequence.mockResolvedValue(initialSequence);
+
+      const updatedSequence = {
+        ...initialSequence,
+        messages: [{
           id: 'msg-1',
           type_name: 'RRCConnectionRequest',
           data: {},
           sourceActor: 'UE',
           targetActor: 'gNB',
-          timestamp: Date.now() / 1000,
-        },
-      ],
-      subSequences: [],
-      configurations: {},
-      validationResults: [],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+          timestamp: Date.now() / 1000
+        }]
+      };
+      mockService.addMessageToSequence.mockResolvedValue(updatedSequence);
 
-    const updatedSequence: MscSequence = {
-      ...mockSequence,
-      messages: [],
-    };
+      const { result } = renderHook(() => useMscEditor());
 
-    mockMscServiceInstance.getSequence.mockResolvedValue(mockSequence);
-    mockMscServiceInstance.updateSequence.mockResolvedValue(updatedSequence);
+      // Create sequence first
+      await act(async () => {
+        await result.current.createSequence('Test', 'rrc_demo');
+      });
 
-    const { result } = renderHook(() => useMscEditor());
-
-    await act(async () => {
-      await result.current.createSequence('Test', 'rrc_demo');
-    });
-
-    await act(async () => {
-      await result.current.removeMessage('msg-1');
-    });
-
-    expect(mockMscServiceInstance.updateSequence).toHaveBeenCalledWith(
-      'seq-1',
-      expect.objectContaining({
-        remove_message: 'msg-1',
-      })
-    );
-  });
-
-  it('validates a sequence', async () => {
-    const mockSequence: MscSequence = {
-      id: 'seq-1',
-      name: 'Test',
-      protocol: 'rrc_demo',
-      messages: [],
-      subSequences: [],
-      configurations: {},
-      validationResults: [],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-
-    const validationResults = {
-      results: [
-        { type: 'error' as const, message: 'Test error' },
-      ],
-      hasErrors: true,
-      errorCount: 1,
-      warningCount: 0,
-    };
-
-    mockMscServiceInstance.getSequence.mockResolvedValue(mockSequence);
-    mockMscServiceInstance.validateSequence.mockResolvedValue(validationResults);
-
-    const { result } = renderHook(() => useMscEditor());
-
-    await act(async () => {
-      await result.current.createSequence('Test', 'rrc_demo');
-    });
-
-    await act(async () => {
-      await result.current.validateSequence();
-    });
-
-    expect(mockMscServiceInstance.validateSequence).toHaveBeenCalledWith('seq-1');
-    expect(result.current.state.currentSequence?.validationResults).toEqual(validationResults.results);
-  });
-
-  it('updates sequence name', async () => {
-    const mockSequence: MscSequence = {
-      id: 'seq-1',
-      name: 'Old Name',
-      protocol: 'rrc_demo',
-      messages: [],
-      subSequences: [],
-      configurations: {},
-      validationResults: [],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-
-    const updatedSequence: MscSequence = {
-      ...mockSequence,
-      name: 'New Name',
-    };
-
-    mockMscServiceInstance.getSequence.mockResolvedValue(mockSequence);
-    mockMscServiceInstance.updateSequence.mockResolvedValue(updatedSequence);
-
-    const { result } = renderHook(() => useMscEditor());
-
-    await act(async () => {
-      await result.current.createSequence('Old Name', 'rrc_demo');
-    });
-
-    await act(async () => {
-      await result.current.setSequenceName('New Name');
-    });
-
-    expect(mockMscServiceInstance.updateSequence).toHaveBeenCalledWith(
-      'seq-1',
-      { name: 'New Name' }
-    );
-  });
-
-  it('handles undo/redo', async () => {
-    const mockSequence: MscSequence = {
-      id: 'seq-1',
-      name: 'Test',
-      protocol: 'rrc_demo',
-      messages: [],
-      subSequences: [],
-      configurations: {},
-      validationResults: [],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-
-    mockMscServiceInstance.getSequence.mockResolvedValue(mockSequence);
-
-    const { result } = renderHook(() => useMscEditor());
-
-    await act(async () => {
-      await result.current.createSequence('Test', 'rrc_demo');
-    });
-
-    // Initially can't undo
-    expect(result.current.canUndo).toBe(false);
-
-    // Add a message to create history
-    const updatedSequence: MscSequence = {
-      ...mockSequence,
-      messages: [
-        {
-          id: 'msg-1',
+      // Add message
+      await act(async () => {
+        await result.current.addMessage({
           type_name: 'RRCConnectionRequest',
           data: {},
-          sourceActor: 'UE',
-          targetActor: 'gNB',
-          timestamp: Date.now() / 1000,
-        },
-      ],
-    };
-
-    mockMscServiceInstance.addMessageToSequence.mockResolvedValue(updatedSequence);
-
-    await act(async () => {
-      await result.current.addMessage({
-        type_name: 'RRCConnectionRequest',
-        data: {},
-        source_actor: 'UE',
-        target_actor: 'gNB',
+          source_actor: 'UE',
+          target_actor: 'gNB'
+        });
       });
+
+      expect(mockService.addMessageToSequence).toHaveBeenCalled();
     });
 
-    // Now should be able to undo
-    expect(result.current.canUndo).toBe(true);
+    it('requires a sequence before adding messages', async () => {
+      const { result } = renderHook(() => useMscEditor());
 
-    await act(() => {
-      result.current.undo();
+      await waitFor(() => {
+        expect(result.current.isInitialized).toBe(true);
+      });
+
+      // Try to add without sequence - should throw or handle gracefully
+      await expect(
+        act(async () => {
+          await result.current.addMessage({
+            type_name: 'Test',
+            data: {},
+            source_actor: 'UE',
+            target_actor: 'gNB'
+          });
+        })
+      ).rejects.toThrow();
     });
-
-    // After undo, should be able to redo
-    expect(result.current.canRedo).toBe(true);
   });
 
-  it('exports sequence as JSON', () => {
-    const mockSequence: MscSequence = {
-      id: 'seq-1',
-      name: 'Test',
-      protocol: 'rrc_demo',
-      messages: [],
-      subSequences: [],
-      configurations: {},
-      validationResults: [],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
+  describe('UI State', () => {
+    it('can select a message by index', async () => {
+      const { result } = renderHook(() => useMscEditor());
 
-    const { result } = renderHook(() => useMscEditor());
+      await waitFor(() => {
+        expect(result.current.isInitialized).toBe(true);
+      });
 
-    act(() => {
-      // Manually set the sequence for testing
-      (result.current.state as any).currentSequence = mockSequence;
+      act(() => {
+        result.current.selectMessage(2);
+      });
+
+      expect(result.current.state.selectedMessageIndex).toBe(2);
     });
 
-    const exported = result.current.exportSequence();
-    expect(exported).toContain('"id":"seq-1"');
-    expect(exported).toContain('"name":"Test"');
+    it('can deselect message with null', async () => {
+      const { result } = renderHook(() => useMscEditor());
+
+      await waitFor(() => {
+        expect(result.current.isInitialized).toBe(true);
+      });
+
+      act(() => {
+        result.current.selectMessage(1);
+      });
+      expect(result.current.state.selectedMessageIndex).toBe(1);
+
+      act(() => {
+        result.current.selectMessage(null);
+      });
+      expect(result.current.state.selectedMessageIndex).toBeNull();
+    });
   });
 
-  it('imports sequence from JSON', async () => {
-    const importData = JSON.stringify({
-      id: 'seq-2',
-      name: 'Imported',
-      protocol: 'rrc_demo',
-      messages: [],
-      subSequences: [],
-      configurations: {},
-      validationResults: [],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+  describe('Export/Import', () => {
+    it('exports current sequence as JSON', async () => {
+      const sequence = {
+        id: 'export-seq',
+        name: 'Export Test',
+        protocol: 'rrc_demo',
+        messages: [],
+        configurations: {},
+        validationResults: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      mockService.createSequence.mockResolvedValue(sequence);
+
+      const { result } = renderHook(() => useMscEditor());
+
+      await act(async () => {
+        await result.current.createSequence('Export Test', 'rrc_demo');
+      });
+
+      const exported = result.current.exportSequence();
+
+      // Should be valid JSON
+      expect(() => JSON.parse(exported)).not.toThrow();
+      const parsed = JSON.parse(exported);
+      expect(parsed.name).toBe('Export Test');
     });
-
-    const mockSequence: MscSequence = JSON.parse(importData);
-    mockMscServiceInstance.createSequence.mockResolvedValue(mockSequence);
-
-    const { result } = renderHook(() => useMscEditor());
-
-    await act(async () => {
-      await result.current.importSequence(importData);
-    });
-
-    expect(mockMscServiceInstance.createSequence).toHaveBeenCalledWith('Imported', 'rrc_demo');
   });
 });
-

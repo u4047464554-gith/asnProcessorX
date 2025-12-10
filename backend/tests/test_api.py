@@ -9,7 +9,7 @@ def test_health(client):
     assert response.status_code == 200
     data = response.json()
     assert data["status"] == "ok"
-    assert data["version"] == "0.3.0"
+    assert data["version"] == "0.3.1"
 
 def test_list_protocols(client):
     response = client.get("/api/asn/protocols")

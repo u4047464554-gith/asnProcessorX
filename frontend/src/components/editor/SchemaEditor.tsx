@@ -426,7 +426,7 @@ export function SchemaEditor({ protocol, onSchemaUpdated }: SchemaEditorProps) {
                                             <Accordion.Control p="xs"><Text size="xs">{file}</Text></Accordion.Control>
                                             <Accordion.Panel p={0}>
                                                 <Stack gap={0}>
-                                                    {types.map(type => (
+                                                    {(Array.isArray(types) ? types : []).map(type => (
                                                         <Button
                                                             key={type}
                                                             variant="subtle"
@@ -440,7 +440,7 @@ export function SchemaEditor({ protocol, onSchemaUpdated }: SchemaEditorProps) {
                                                             {type}
                                                         </Button>
                                                     ))}
-                                                    {types.length === 0 && <Text size="xs" c="dimmed" p="xs" fs="italic">No definitions found</Text>}
+                                                    {(!Array.isArray(types) || types.length === 0) && <Text size="xs" c="dimmed" p="xs" fs="italic">No definitions found</Text>}
                                                 </Stack>
                                             </Accordion.Panel>
                                         </Accordion.Item>

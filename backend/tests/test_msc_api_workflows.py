@@ -67,7 +67,8 @@ class TestMscSequenceWorkflows:
         assert msg_resp.status_code == 200
         msg_data = msg_resp.json()
         assert len(msg_data['messages']) == 1
-        assert msg_data['messages'][0]['type_name'] == 'RRCConnectionRequest'
+        msg = msg_data['messages'][0]
+        assert msg.get('type_name', msg.get('typeName')) == 'RRCConnectionRequest'
         
         # Cleanup
         client.delete(f'/api/msc/sequences/{sequence_id}')
@@ -199,12 +200,15 @@ class TestMscSequenceWorkflows:
         
         # Verify the complete flow
         assert len(final_sequence['messages']) == 3
-        assert final_sequence['messages'][0]['type_name'] == 'RRCConnectionRequest'
-        assert final_sequence['messages'][0]['source_actor'] == 'UE'
-        assert final_sequence['messages'][1]['type_name'] == 'RRCConnectionSetup'
-        assert final_sequence['messages'][1]['source_actor'] == 'gNB'
-        assert final_sequence['messages'][2]['type_name'] == 'RRCConnectionSetupComplete'
-        assert final_sequence['messages'][2]['source_actor'] == 'UE'
+        # Helper to get property with fallback
+        get_prop = lambda msg, snake, camel: msg.get(snake, msg.get(camel))
+        
+        assert get_prop(final_sequence['messages'][0], 'type_name', 'typeName') == 'RRCConnectionRequest'
+        assert get_prop(final_sequence['messages'][0], 'source_actor', 'sourceActor') == 'UE'
+        assert get_prop(final_sequence['messages'][1], 'type_name', 'typeName') == 'RRCConnectionSetup'
+        assert get_prop(final_sequence['messages'][1], 'source_actor', 'sourceActor') == 'gNB'
+        assert get_prop(final_sequence['messages'][2], 'type_name', 'typeName') == 'RRCConnectionSetupComplete'
+        assert get_prop(final_sequence['messages'][2], 'source_actor', 'sourceActor') == 'UE'
         
         # Cleanup
         client.delete(f'/api/msc/sequences/{sequence_id}')
@@ -293,7 +297,7 @@ class TestMscSequenceWorkflows:
         # Add messages from exported data
         for msg in exported['messages']:
             client.post(f'/api/msc/sequences/{new_id}/messages', json={
-                'type_name': msg['type_name'],
+                'type_name': msg.get('type_name', msg.get('typeName', 'UNKNOWN')),
                 'data': msg['data'],
                 'source_actor': msg.get('source_actor', msg.get('sourceActor', 'UE')),
                 'target_actor': msg.get('target_actor', msg.get('targetActor', 'gNB'))
@@ -354,8 +358,10 @@ class TestMscSessionWorkflows:
         list_resp = client.get(f'/api/msc/sequences?session_id={session_id}')
         sequences = list_resp.json()
         
-        # Should have 2 sequences in this session
-        session_seqs = [s for s in sequences if s.get('session_id') == session_id]
+        # Should have 2 sequences in this session (API uses camelCase keys)
+        session_seqs = [s for s in sequences if s.get('sessionId') == session_id or s.get('session_id') == session_id]
+        
+        
         assert len(session_seqs) >= 2
         
         # Cleanup

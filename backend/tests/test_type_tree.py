@@ -1,4 +1,4 @@
-import asn1tools
+from backend.core.asn1_runtime import asn1tools
 from backend.core.type_tree import build_type_tree
 
 def test_build_tree_sequence_optional_default():

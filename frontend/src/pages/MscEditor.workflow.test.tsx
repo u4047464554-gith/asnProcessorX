@@ -3,12 +3,17 @@ import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { BrowserRouter } from 'react-router-dom';
 import { MantineProvider } from '@mantine/core';
 import { MscEditor } from './MscEditor';
+import { useSession } from '../hooks/useSession';
 import { useMscEditor } from '../hooks/useMscEditor';
 import mscSessionService from '../services/mscSessionService';
 import type { MscSequence } from '../domain/msc/types';
 
 // Mock dependencies
 vi.mock('../hooks/useMscEditor');
+vi.mock('../hooks/useSession', () => ({
+  useSession: vi.fn(),
+  SessionProvider: ({ children }: any) => <>{children}</>,
+}));
 vi.mock('../services/mscSessionService', () => ({
   default: {
     listSessions: vi.fn(),
@@ -62,6 +67,19 @@ const mockMscEditorHook = {
   isInitialized: true,
 };
 
+// Mock useSession hook
+const mockSessionHook = {
+  sessions: [],
+  currentSessionId: null,
+  loading: false,
+  createSession: vi.fn(),
+  switchSession: vi.fn(),
+  updateSession: vi.fn(),
+  deleteSession: vi.fn(),
+  refreshSessions: vi.fn(),
+  currentSession: null,
+};
+
 const renderMscEditor = () => {
   return render(
     <MantineProvider>
@@ -76,6 +94,7 @@ describe('MscEditor - Basic Workflows', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     (useMscEditor as any).mockReturnValue(mockMscEditorHook);
+    (useSession as any).mockReturnValue(mockSessionHook);
     (global.fetch as any).mockResolvedValue({
       ok: true,
       json: async () => ['RRCConnectionRequest', 'EstablishmentCause', 'InitialUE-Identity'],
@@ -100,6 +119,12 @@ describe('MscEditor - Basic Workflows', () => {
       };
 
       (mscSessionService.listSessions as any).mockResolvedValue([mockSession]);
+      (useSession as any).mockReturnValue({
+        ...mockSessionHook,
+        sessions: [mockSession],
+        currentSessionId: mockSession.id,
+        currentSession: mockSession
+      });
 
       // Step 2: Setup sequence
       const sequenceWithId = { ...mockSequence, id: 'seq-1' };
@@ -138,6 +163,12 @@ describe('MscEditor - Basic Workflows', () => {
       const existingSequence = { ...mockSequence, name: 'Old Name' };
 
       (mscSessionService.listSessions as any).mockResolvedValue([existingSession]);
+      (useSession as any).mockReturnValue({
+        ...mockSessionHook,
+        sessions: [existingSession],
+        currentSessionId: existingSession.id,
+        currentSession: existingSession
+      });
       (useMscEditor as any).mockReturnValue({
         ...mockMscEditorHook,
         state: {
@@ -217,6 +248,12 @@ describe('MscEditor - Basic Workflows', () => {
       };
 
       (mscSessionService.listSessions as any).mockResolvedValue([session1, session2]);
+      (useSession as any).mockReturnValue({
+        ...mockSessionHook,
+        sessions: [session1, session2],
+        currentSessionId: session1.id,
+        currentSession: session1
+      });
       (useMscEditor as any).mockReturnValue({
         ...mockMscEditorHook,
         state: {
@@ -227,14 +264,14 @@ describe('MscEditor - Basic Workflows', () => {
 
       renderMscEditor();
 
-      // Wait for sessions to load
+      // Wait for sessions to load (selector to appear)
       await waitFor(() => {
-        expect(mscSessionService.listSessions).toHaveBeenCalled();
+        expect(screen.getByPlaceholderText('Session')).toBeInTheDocument();
       });
 
       // Verify session selector is present
       await waitFor(() => {
-        expect(screen.getByPlaceholderText('Select session')).toBeInTheDocument();
+        expect(screen.getByPlaceholderText('Session')).toBeInTheDocument();
       });
     });
   });
@@ -250,6 +287,12 @@ describe('MscEditor - Basic Workflows', () => {
       };
 
       (mscSessionService.listSessions as any).mockResolvedValue([session]);
+      (useSession as any).mockReturnValue({
+        ...mockSessionHook,
+        sessions: [session],
+        currentSessionId: session.id,
+        currentSession: session
+      });
       (useMscEditor as any).mockReturnValue({
         ...mockMscEditorHook,
         state: {
@@ -287,6 +330,12 @@ describe('MscEditor - Basic Workflows', () => {
       const sequence = { ...mockSequence, name: 'Original Name' };
 
       (mscSessionService.listSessions as any).mockResolvedValue([session]);
+      (useSession as any).mockReturnValue({
+        ...mockSessionHook,
+        sessions: [session],
+        currentSessionId: session.id,
+        currentSession: session
+      });
       (useMscEditor as any).mockReturnValue({
         ...mockMscEditorHook,
         state: {
@@ -325,6 +374,12 @@ describe('MscEditor - Basic Workflows', () => {
       const sequence = { ...mockSequence, protocol: 'rrc_demo' };
 
       (mscSessionService.listSessions as any).mockResolvedValue([session]);
+      (useSession as any).mockReturnValue({
+        ...mockSessionHook,
+        sessions: [session],
+        currentSessionId: session.id,
+        currentSession: session
+      });
       (useMscEditor as any).mockReturnValue({
         ...mockMscEditorHook,
         state: {

@@ -510,7 +510,6 @@ class MscRepository(IMscRepository):
                                 if os.path.isdir(proto_path):
                                     search_paths.append(proto_path)
         
-        print(f"DEBUG: list_sequences searching paths: {search_paths}", flush=True)
         # Get all JSON files in search paths
         for search_path in search_paths:
             if not os.path.exists(search_path):

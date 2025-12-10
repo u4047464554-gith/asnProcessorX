@@ -19,6 +19,7 @@ export default defineConfig({
     coverage: {
       reporter: ['text', 'html'],
     },
+    reporters: ['verbose'],
   },
   build: {
     chunkSizeWarningLimit: 1000,

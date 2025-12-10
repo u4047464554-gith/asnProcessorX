@@ -656,6 +656,8 @@ export const MscEditor: React.FC<MscEditorProps> = ({ initialProtocol }) => {
         canRedo={canRedo}
         undo={undo}
         redo={redo}
+        sequenceName={localSequenceName}
+        onSequenceNameChange={setLocalSequenceName}
       />
 
       <AppShell.Main>

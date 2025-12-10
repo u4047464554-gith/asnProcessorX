@@ -47,6 +47,8 @@ interface MscHeaderProps {
     canRedo: boolean;
     undo: () => void;
     redo: () => void;
+    sequenceName?: string;
+    onSequenceNameChange?: (name: string) => void;
 }
 
 export const MscHeader: React.FC<MscHeaderProps> = ({
@@ -60,7 +62,9 @@ export const MscHeader: React.FC<MscHeaderProps> = ({
     canUndo,
     canRedo,
     undo,
-    redo
+    redo,
+    sequenceName,
+    onSequenceNameChange
 }) => {
     const navigate = useNavigate();
     const { sessions, currentSessionId, switchSession, createSession, deleteSession } = useSession();
@@ -164,6 +168,16 @@ export const MscHeader: React.FC<MscHeaderProps> = ({
                         <IconHome size={20} />
                     </ActionIcon>
                     <Title order={3}>MSC Editor</Title>
+                    {currentSequence && (
+                        <TextInput
+                            size="xs"
+                            placeholder="Sequence Name"
+                            value={sequenceName || ''}
+                            onChange={(e) => onSequenceNameChange?.(e.currentTarget.value)}
+                            style={{ width: 200 }}
+                            aria-label="Sequence name"
+                        />
+                    )}
                 </Group>
 
                 <Group>

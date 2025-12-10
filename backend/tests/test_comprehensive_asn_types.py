@@ -3,7 +3,7 @@ Comprehensive tests for all ASN.1 types to ensure proper conversion and encoding
 Tests cover primitives, constructed types, constraints, and edge cases.
 """
 import pytest
-import asn1tools
+from backend.core.asn1_runtime import asn1tools
 from backend.core.converter import convert_to_python_asn1
 from backend.core.serialization import serialize_asn1_data
 

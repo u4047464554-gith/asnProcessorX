@@ -1,6 +1,6 @@
 fastapi
 uvicorn
-asn1tools
+-e ../sources/asn1tools
 pydantic
 python-multipart
 pytest

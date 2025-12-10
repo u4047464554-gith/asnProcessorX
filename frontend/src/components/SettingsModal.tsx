@@ -1,7 +1,8 @@
-import { Modal, Button, Stack, Group, Title, Text, TagsInput, Select, Divider, NumberInput } from '@mantine/core';
+import { Modal, Button, Stack, Group, Title, Text, TagsInput, Select, Divider, NumberInput, Alert } from '@mantine/core';
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { themes } from '../theme';
+import { IconAlertTriangle, IconCheck } from '@tabler/icons-react';
 
 interface SettingsModalProps {
     opened: boolean;
@@ -10,16 +11,24 @@ interface SettingsModalProps {
     onThemeChange: (theme: string) => void;
 }
 
+interface CompilationErrors {
+    [protocol: string]: string;
+}
+
 export function SettingsModal({ opened, onClose, currentTheme, onThemeChange }: SettingsModalProps) {
     const [specsDirs, setSpecsDirs] = useState<string[]>([]);
     const [splashDuration, setSplashDuration] = useState<number>(3);
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [compilationErrors, setCompilationErrors] = useState<CompilationErrors | null>(null);
+    const [compilationSuccess, setCompilationSuccess] = useState(false);
 
     useEffect(() => {
         if (opened) {
             setLoading(true);
+            setCompilationErrors(null);
+            setCompilationSuccess(false);
             axios.get('/api/config/')
                 .then(res => {
                     setSpecsDirs(res.data.specs_directories);
@@ -33,15 +42,34 @@ export function SettingsModal({ opened, onClose, currentTheme, onThemeChange }: 
 
     const handleSave = async () => {
         setSaving(true);
+        setCompilationErrors(null);
+        setCompilationSuccess(false);
         try {
-            await axios.put('/api/config/', {
+            const response = await axios.put('/api/config/', {
                 specs_directories: specsDirs,
                 splash_duration: splashDuration * 1000
             });
-            onClose();
-            window.location.reload(); 
+
+            const data = response.data;
+
+            // Check for compilation errors
+            if (data.compilation_status === 'warning' && data.compilation_errors) {
+                setCompilationErrors(data.compilation_errors);
+                // Don't close modal - let user see the errors
+                setError(null);
+            } else if (data.compilation_status === 'success') {
+                setCompilationSuccess(true);
+                // Close and reload after a short delay
+                setTimeout(() => {
+                    onClose();
+                    window.location.reload();
+                }, 1500);
+            } else {
+                onClose();
+                window.location.reload();
+            }
         } catch (err: any) {
-            setError(err.message);
+            setError(err.response?.data?.detail || err.message);
         } finally {
             setSaving(false);
         }
@@ -51,7 +79,7 @@ export function SettingsModal({ opened, onClose, currentTheme, onThemeChange }: 
         <Modal opened={opened} onClose={onClose} title="Settings" size="lg">
             <Stack>
                 <Title order={5}>User Interface</Title>
-                <Select 
+                <Select
                     label="Theme"
                     data={Object.keys(themes)}
                     value={currentTheme}
@@ -69,9 +97,9 @@ export function SettingsModal({ opened, onClose, currentTheme, onThemeChange }: 
 
                 <Title order={5}>ASN.1 Specifications</Title>
                 <Text size="sm" c="dimmed">
-                    Add directories where your .asn files are located. The backend will scan these recursively.
+                    Add directories where your .asn files are located. Each subdirectory will be treated as a protocol.
                 </Text>
-                
+
                 <TagsInput
                     label="Spec Directories"
                     placeholder="Press Enter to add path"
@@ -82,6 +110,37 @@ export function SettingsModal({ opened, onClose, currentTheme, onThemeChange }: 
 
                 {error && <Text c="red" size="sm">{error}</Text>}
 
+                {compilationSuccess && (
+                    <Alert icon={<IconCheck size={16} />} title="Success" color="green">
+                        All specifications compiled successfully. Reloading...
+                    </Alert>
+                )}
+
+                {compilationErrors && Object.keys(compilationErrors).length > 0 && (
+                    <Alert icon={<IconAlertTriangle size={16} />} title="Compilation Errors" color="orange">
+                        <Text size="sm" mb="xs">
+                            The following protocols failed to compile. Check your ASN.1 syntax:
+                        </Text>
+                        {Object.entries(compilationErrors).map(([protocol, errorMsg]) => (
+                            <div key={protocol} style={{ marginBottom: '8px' }}>
+                                <Text size="sm" fw={600}>{protocol}:</Text>
+                                <Text size="xs" c="dimmed" style={{
+                                    fontFamily: 'monospace',
+                                    whiteSpace: 'pre-wrap',
+                                    wordBreak: 'break-word',
+                                    maxHeight: '100px',
+                                    overflow: 'auto',
+                                    backgroundColor: 'var(--mantine-color-dark-6)',
+                                    padding: '4px 8px',
+                                    borderRadius: '4px'
+                                }}>
+                                    {errorMsg}
+                                </Text>
+                            </div>
+                        ))}
+                    </Alert>
+                )}
+
                 <Group justify="flex-end" mt="md">
                     <Button variant="default" onClick={onClose}>Cancel</Button>
                     <Button onClick={handleSave} loading={saving}>Save & Reload</Button>
@@ -90,3 +149,4 @@ export function SettingsModal({ opened, onClose, currentTheme, onThemeChange }: 
         </Modal>
     );
 }
+
