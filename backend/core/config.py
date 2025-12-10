@@ -5,6 +5,7 @@ from pydantic import BaseModel, ConfigDict
 
 class AppConfig(BaseModel):
     specs_directories: List[str] = ["asn_specs"]
+    asn_extensions: List[str] = [".asn", ".asn1"]
     server_port: int = 0  # 0 for ephemeral
     server_host: str = "127.0.0.1"
     log_level: str = "INFO"

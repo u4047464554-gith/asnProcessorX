@@ -14,7 +14,8 @@ from backend.core.config import config_manager
 
 logger = logging.getLogger(__name__)
 
-TRACKED_EXTENSIONS = {".asn", ".json"}
+
+
 
 
 @dataclass
@@ -110,8 +111,16 @@ class AsnManager:
             return (0.0, 0)
 
     def _capture_snapshot(self, paths: List[str]) -> Dict[str, Tuple[float, int]]:
+        config = config_manager.get()
+        tracked_extensions = set(config.asn_extensions + [".json"])
+        
         snapshot: Dict[str, Tuple[float, int]] = {}
-        for specs_dir in paths:
+        for path in paths:
+            if os.path.isfile(path):
+                snapshot[path] = self._stat_entry(path)
+                continue
+            
+            specs_dir = path
             if not os.path.isdir(specs_dir):
                 continue
             snapshot[specs_dir] = self._stat_entry(specs_dir)
@@ -130,7 +139,7 @@ class AsnManager:
                     if not os.path.isfile(file_path):
                         continue
                     ext = os.path.splitext(file_path)[1].lower()
-                    if ext not in TRACKED_EXTENSIONS:
+                    if ext not in tracked_extensions:
                         continue
                     snapshot[file_path] = self._stat_entry(file_path)
         return snapshot
@@ -160,6 +169,9 @@ class AsnManager:
         search_paths = search_paths or self._resolve_specs_paths()
         logger.info(f"[AsnManager] Scanning paths: {search_paths}")
         
+        config = config_manager.get()
+        asn_extensions = set(config.asn_extensions)
+        
         # We use temporary dicts to build the new state
         # If a protocol fails to compile, we try to retain the old version
         new_compilers = {}
@@ -178,14 +190,45 @@ class AsnManager:
         
         bundled_dir_abs = os.path.abspath(os.path.join(base_dir, 'asn_specs'))
 
-        for specs_dir in search_paths:
-            if not os.path.isdir(specs_dir):
+        for specs_path in search_paths:
+            # Handle explicit single file
+            # Handle explicit single file
+            ext = os.path.splitext(specs_path)[1].lower()
+            if os.path.isfile(specs_path) and ext in asn_extensions:
+                protocol = os.path.splitext(os.path.basename(specs_path))[0]
+                logger.info(f"Detected explicit spec file: {specs_path} (name: {protocol})")
+                try:
+                    compiler = asn1tools.compile_files([specs_path], codec='per')
+                    new_compilers[protocol] = compiler
+                    type_names = sorted(list(compiler.types.keys()))
+                    
+                    # File-based protocol is never grouped as "bundled" in the same way
+                    new_metadata[protocol] = ProtocolMetadata(
+                        name=protocol,
+                        files=[os.path.basename(specs_path)],
+                        types=type_names,
+                        is_bundled=False
+                    )
+                    logger.info(f"Successfully compiled file protocol {protocol}")
+                except Exception as e:
+                    logger.error(f"Error compiling file protocol {protocol}: {e}")
+                    errors[protocol] = str(e)
                 continue
+
+            # Handle directory
+            if not os.path.isdir(specs_path):
+                continue
+            
+            specs_dir = specs_path
             
             is_bundled = os.path.abspath(specs_dir) == bundled_dir_abs
             
-            # Check if likely a direct protocol directory (contains .asn files)
-            direct_asn_files = sorted(glob.glob(os.path.join(specs_dir, "*.asn")))
+            # Check if likely a direct protocol directory (contains .asn or .asn1 files)
+            direct_asn_files = []
+            for ext in asn_extensions:
+                direct_asn_files.extend(glob.glob(os.path.join(specs_dir, f"*{ext}")))
+            direct_asn_files = sorted(direct_asn_files)
+
             if direct_asn_files:
                 # Treat this directory itself as a protocol
                 protocol = os.path.basename(specs_dir)
@@ -228,7 +271,10 @@ class AsnManager:
 
             for protocol in subdirs:
                 proto_path = os.path.join(specs_dir, protocol)
-                asn_files = sorted(glob.glob(os.path.join(proto_path, "*.asn")))
+                asn_files = []
+                for ext in asn_extensions:
+                    asn_files.extend(glob.glob(os.path.join(proto_path, f"*{ext}")))
+                asn_files = sorted(asn_files)
                 
                 if asn_files:
                     logger.info(f"Compiling protocol: {protocol} with files: {asn_files}")
@@ -342,8 +388,18 @@ class AsnManager:
         if not path:
             return {}
 
+        config = config_manager.get()
+        asn_extensions = set(config.asn_extensions)
+        
         result = {}
-        asn_files = sorted(glob.glob(os.path.join(path, "*.asn")))
+        asn_files = []
+        if os.path.isfile(path):
+             asn_files = [path]
+        else:
+             for ext in asn_extensions:
+                 asn_files.extend(glob.glob(os.path.join(path, f"*{ext}")))
+        asn_files = sorted(asn_files)
+
         for f in asn_files:
             filename = os.path.basename(f)
             types = []
