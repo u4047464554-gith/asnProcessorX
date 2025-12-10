@@ -9,10 +9,10 @@ import logging
 from dataclasses import dataclass, asdict
 from typing import Dict, Optional, List, Any, Tuple
 
-logger = logging.getLogger(__name__)
-
 from backend.core.asn1_runtime import asn1tools
 from backend.core.config import config_manager
+
+logger = logging.getLogger(__name__)
 
 TRACKED_EXTENSIONS = {".asn", ".json"}
 
