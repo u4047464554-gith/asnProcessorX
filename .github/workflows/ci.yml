@@ -34,6 +34,8 @@ jobs:
         run: mypy backend --ignore-missing-imports || true  # Allow failure for now as we fix types
         
       - name: Run Backend Tests
+        env:
+          PYTHONPATH: ${{ github.workspace }}
         run: pytest backend/tests/ -v --cov=backend
 
   frontend-checks:
