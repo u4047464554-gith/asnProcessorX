@@ -211,7 +211,7 @@ class AsnManager:
                     )
                     logger.info(f"Successfully compiled file protocol {protocol}")
                 except Exception as e:
-                    logger.error(f"Error compiling file protocol {protocol}: {e}")
+                    logger.error(f"Error compiling file protocol {protocol}: {e}", exc_info=True)
                     errors[protocol] = str(e)
                 continue
 
@@ -262,7 +262,7 @@ class AsnManager:
                     
                     logger.info(f"Successfully compiled direct protocol {protocol}")
                 except Exception as e:
-                    logger.error(f"Error compiling direct protocol {protocol}: {e}")
+                    logger.error(f"Error compiling direct protocol {protocol}: {e}", exc_info=True)
                     errors[protocol] = str(e)
             
             # Also scan subdirectories (normal structure)
@@ -308,7 +308,7 @@ class AsnManager:
 
                         logger.info(f"Successfully compiled {protocol}")
                     except Exception as e:
-                        logger.error(f"Error compiling {protocol}: {e}")
+                        logger.error(f"Error compiling {protocol}: {e}", exc_info=True)
                         errors[protocol] = str(e)
                         # Retain old version if available
                         if protocol in self.compilers:
