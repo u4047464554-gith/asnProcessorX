@@ -37,10 +37,11 @@ export const BitValueInput: React.FC<BitValueInputProps> = ({
         switch (mode) {
             case 'dec':
                 return clamped.toString();
-            case 'hex':
+            case 'hex': {
                 const hexDigits = Math.ceil(bitLength / 4);
                 return clamped.toString(16).toUpperCase().padStart(hexDigits, '0');
-            case 'bin':
+            }
+            case 'bin': {
                 // Group bits by 4 for readability
                 const binStr = clamped.toString(2).padStart(bitLength, '0');
                 const groups = [];
@@ -48,6 +49,7 @@ export const BitValueInput: React.FC<BitValueInputProps> = ({
                     groups.push(binStr.slice(i, Math.min(i + 4, binStr.length)));
                 }
                 return groups.join(' ');
+            }
         }
     }, [bitLength, clamp]);
 
