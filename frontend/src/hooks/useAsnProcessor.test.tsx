@@ -7,6 +7,7 @@ import * as demos from '../data/demos';
 vi.mock('../services/asnService', () => ({
     AsnService: {
         getProtocols: vi.fn(),
+        getProtocolsWithMetadata: vi.fn(),
         getTypes: vi.fn(),
         getExamples: vi.fn(),
         getDefinition: vi.fn(),
@@ -55,8 +56,10 @@ describe('useAsnProcessor', () => {
     });
 
     it('fetches protocols on mount', async () => {
+        (AsnService.getProtocolsWithMetadata as any).mockResolvedValue([{ name: 'proto1', error: null }]);
         const { result } = renderHook(() => useAsnProcessor());
         await waitFor(() => expect(result.current.protocols).toEqual(['proto1']));
+        await waitFor(() => expect(result.current.protocolsWithMeta).toEqual([{ name: 'proto1', error: null }]));
     });
 
     it('fetches types and examples when protocol selected', async () => {

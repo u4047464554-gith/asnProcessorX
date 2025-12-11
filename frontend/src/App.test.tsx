@@ -62,6 +62,7 @@ const renderApp = () => {
 describe('App View', () => {
     const mockHook = {
         protocols: ['p1'],
+        protocolsWithMeta: [{ name: 'p1', error: null }],
         selectedProtocol: null,
         handleProtocolChange: vi.fn(),
         setSelectedProtocol: vi.fn(),

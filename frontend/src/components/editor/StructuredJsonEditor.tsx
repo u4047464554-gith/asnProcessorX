@@ -455,7 +455,7 @@ function NodeRenderer({ node, value, onChange, level, path, label, isOptionalGho
                         onChange={(newNum: number) => {
                             // Convert number back to hex
                             const hexDigits = Math.ceil(bitLength / 4);
-                            const newHex = newNum.toString(16).toUpperCase().padStart(hexDigits, '0');
+                            const newHex = '0x' + newNum.toString(16).toUpperCase().padStart(hexDigits, '0');
                             handlePrimitiveChange([newHex, bitLength]);
                         }}
                     />
