@@ -35,6 +35,11 @@ export const AsnService = {
         return res.data;
     },
 
+    async getProtocolsWithMetadata(): Promise<Array<{ name: string, error?: string | null, is_bundled?: boolean }>> {
+        const res = await axios.get<Array<{ name: string, error?: string | null, is_bundled?: boolean }>>('/api/asn/protocols/metadata');
+        return res.data;
+    },
+
     async getProtocolMetadata(protocol: string): Promise<{ is_bundled: boolean }> {
         const res = await axios.get(`/api/asn/protocols/${protocol}/metadata`);
         return res.data;

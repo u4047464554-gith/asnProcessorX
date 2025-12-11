@@ -27,6 +27,7 @@ class ProtocolMetadata:
     files: List[str]
     types: List[str]
     is_bundled: bool = False
+    error: Optional[str] = None  # Compilation error if failed
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
@@ -290,6 +291,14 @@ class AsnManager:
                 except Exception as e:
                     logger.error(f"Error compiling direct protocol {protocol}: {e}", exc_info=True)
                     errors[protocol] = str(e)
+                    # Still add metadata so protocol appears in UI with error
+                    new_metadata[protocol] = ProtocolMetadata(
+                        name=protocol,
+                        files=[os.path.basename(path) for path in direct_asn_files],
+                        types=[],
+                        is_bundled=is_bundled,
+                        error=f"Compilation failed: {e}. Check backend.log for details."
+                    )
             
             # Also scan subdirectories (normal structure)
             subdirs = [d for d in os.listdir(specs_dir) 
@@ -343,6 +352,15 @@ class AsnManager:
                             new_metadata[protocol] = self.metadata[protocol]
                             if protocol in self.examples:
                                 new_examples[protocol] = self.examples[protocol]
+                        else:
+                            # No old version - add metadata with error
+                            new_metadata[protocol] = ProtocolMetadata(
+                                name=protocol,
+                                files=[os.path.relpath(path, specs_dir) for path in asn_files],
+                                types=[],
+                                is_bundled=is_bundled,
+                                error=f"Compilation failed: {e}. Check backend.log for details."
+                            )
         
         self.compilers = new_compilers
         self.metadata = new_metadata
