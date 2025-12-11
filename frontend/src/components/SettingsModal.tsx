@@ -2,7 +2,7 @@ import { Modal, Button, Stack, Group, Title, Text, TagsInput, Select, Divider, N
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { themes } from '../theme';
-import { IconAlertTriangle, IconCheck } from '@tabler/icons-react';
+import { IconAlertTriangle, IconCheck, IconInfoCircle } from '@tabler/icons-react';
 
 interface SettingsModalProps {
     opened: boolean;
@@ -23,12 +23,14 @@ export function SettingsModal({ opened, onClose, currentTheme, onThemeChange }: 
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [compilationErrors, setCompilationErrors] = useState<CompilationErrors | null>(null);
+    const [compilationWarnings, setCompilationWarnings] = useState<string[] | null>(null);
     const [compilationSuccess, setCompilationSuccess] = useState(false);
 
     useEffect(() => {
         if (opened) {
             setLoading(true);
             setCompilationErrors(null);
+            setCompilationWarnings(null);
             setCompilationSuccess(false);
             axios.get('/api/config/')
                 .then(res => {
@@ -45,6 +47,7 @@ export function SettingsModal({ opened, onClose, currentTheme, onThemeChange }: 
     const handleSave = async () => {
         setSaving(true);
         setCompilationErrors(null);
+        setCompilationWarnings(null);
         setCompilationSuccess(false);
         try {
             const response = await axios.put('/api/config/', {
@@ -62,11 +65,16 @@ export function SettingsModal({ opened, onClose, currentTheme, onThemeChange }: 
                 setError(null);
             } else if (data.compilation_status === 'success') {
                 setCompilationSuccess(true);
-                // Close and reload after a short delay
-                setTimeout(() => {
-                    onClose();
-                    window.location.reload();
-                }, 1500);
+                // Show warnings if any
+                if (data.compilation_warnings && data.compilation_warnings.length > 0) {
+                    setCompilationWarnings(data.compilation_warnings);
+                } else {
+                    // Close and reload after a short delay (only if no warnings to show)
+                    setTimeout(() => {
+                        onClose();
+                        window.location.reload();
+                    }, 1500);
+                }
             } else {
                 onClose();
                 window.location.reload();
@@ -132,9 +140,50 @@ export function SettingsModal({ opened, onClose, currentTheme, onThemeChange }: 
 
                 {error && <Text c="red" size="sm">{error}</Text>}
 
-                {compilationSuccess && (
+                {compilationSuccess && !compilationWarnings && (
                     <Alert icon={<IconCheck size={16} />} title="Success" color="green">
                         All specifications compiled successfully. Reloading...
+                    </Alert>
+                )}
+
+                {compilationWarnings && compilationWarnings.length > 0 && (
+                    <Alert
+                        icon={<IconInfoCircle size={16} />}
+                        title="Compilation Warnings - Missing Imports"
+                        color="blue"
+                        withCloseButton
+                        onClose={() => {
+                            setCompilationWarnings(null);
+                            // Now that user has seen warnings, reload
+                            onClose();
+                            window.location.reload();
+                        }}
+                    >
+                        <Text size="sm" mb="xs">
+                            Some types were resolved implicitly across modules. Consider adding explicit IMPORTS:
+                        </Text>
+                        {compilationWarnings.map((warning, index) => (
+                            <Text key={index} size="xs" style={{
+                                fontFamily: 'monospace',
+                                whiteSpace: 'pre-wrap',
+                                wordBreak: 'break-word',
+                                backgroundColor: 'var(--mantine-color-dark-6)',
+                                padding: '8px',
+                                borderRadius: '4px',
+                                marginBottom: index < compilationWarnings.length - 1 ? '8px' : 0
+                            }}>
+                                {warning}
+                            </Text>
+                        ))}
+                        <Group justify="flex-end" mt="sm">
+                            <Button size="xs" onClick={() => {
+                                setCompilationWarnings(null);
+                                onClose();
+                                window.location.reload();
+                            }}>
+                                Dismiss & Reload
+                            </Button>
+                        </Group>
                     </Alert>
                 )}
 

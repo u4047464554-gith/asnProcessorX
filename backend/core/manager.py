@@ -6,6 +6,7 @@ import re
 import threading
 import time
 import logging
+import warnings
 from dataclasses import dataclass, asdict
 from typing import Dict, Optional, List, Any, Tuple
 
@@ -41,6 +42,7 @@ class AsnManager:
         self._snapshot_state: Dict[str, Tuple[float, int]] = {}
         self._last_snapshot_check: float = 0.0
         self._snapshot_interval: float = 2.0  # seconds
+        self._compilation_warnings: List[str] = []  # Track implicit import warnings
         self.load_protocols()
         
     def _resolve_specs_paths(self) -> List[str]:
@@ -161,13 +163,37 @@ class AsnManager:
         with self._lock:
             return self._load_protocols_locked()
 
+    def get_last_warnings(self) -> List[str]:
+        """Return warnings from the last compilation (e.g., implicit imports)."""
+        with self._lock:
+            return list(self._compilation_warnings)
+
+    def _compile_with_warnings(self, asn_files: List[str], codec: str = 'per'):
+        """Compile ASN.1 files and capture any warnings (e.g., implicit imports)."""
+        with warnings.catch_warnings(record=True) as caught_warnings:
+            warnings.simplefilter("always")
+            compiler = asn1tools.compile_files(asn_files, codec=codec)
+            
+            # Add captured warnings to our list
+            for w in caught_warnings:
+                msg = str(w.message)
+                if msg not in self._compilation_warnings:
+                    self._compilation_warnings.append(msg)
+                    logger.warning(f"Compilation warning: {msg}")
+            
+            return compiler
+
     def _load_protocols_locked(self, search_paths: Optional[List[str]] = None) -> Dict[str, str]:
         """
         Scans all configured specs directories.
         Returns a dict of protocol_name -> error_message for any failures.
+        Warnings are stored in self._compilation_warnings.
         """
         search_paths = search_paths or self._resolve_specs_paths()
         logger.info(f"[AsnManager] Scanning paths: {search_paths}")
+        
+        # Clear previous warnings
+        self._compilation_warnings = []
         
         config = config_manager.get()
         asn_extensions = set(config.asn_extensions)
@@ -235,7 +261,7 @@ class AsnManager:
                 logger.info(f"Detected defined protocol in: {specs_dir} (name: {protocol})")
                 
                 try:
-                    compiler = asn1tools.compile_files(direct_asn_files, codec='per')
+                    compiler = self._compile_with_warnings(direct_asn_files, codec='per')
                     new_compilers[protocol] = compiler
                     type_names = sorted(list(compiler.types.keys()))
                     new_metadata[protocol] = ProtocolMetadata(
@@ -279,7 +305,7 @@ class AsnManager:
                 if asn_files:
                     logger.info(f"Compiling protocol: {protocol} with files: {asn_files}")
                     try:
-                        compiler = asn1tools.compile_files(asn_files, codec='per')
+                        compiler = self._compile_with_warnings(asn_files, codec='per')
                         new_compilers[protocol] = compiler
                         type_names = sorted(list(compiler.types.keys()))
                         new_metadata[protocol] = ProtocolMetadata(

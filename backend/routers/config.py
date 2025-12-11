@@ -16,14 +16,19 @@ async def update_config(config: AppConfig):
         # This is a heavy operation, might want to make it explicit?
         # For now, reload automatically.
         errors = manager.reload()
+        compilation_warnings = manager.get_last_warnings()
         
-        # Return config along with any compilation errors
+        # Return config along with any compilation errors/warnings
         response = config_manager.get().model_dump()
         if errors:
             response["compilation_errors"] = errors
             response["compilation_status"] = "warning"
         else:
             response["compilation_status"] = "success"
+        
+        if compilation_warnings:
+            response["compilation_warnings"] = compilation_warnings
+            
         return response
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
