@@ -72,6 +72,7 @@ function AsnProcessor() {
     const [settingsOpen, setSettingsOpen] = useState(false)
     const [schemaEditorOpen, setSchemaEditorOpen] = useState(false)
     const [definitionOpen, setDefinitionOpen] = useState(true)
+    const [bitInspectorOpen, setBitInspectorOpen] = useState(false)  // Collapsed by default
     const [saveModalOpen, setSaveModalOpen] = useState(false)
     const [saveFilename, setSaveFilename] = useState('')
     const [saveMode, setSaveMode] = useState<'new' | 'overwrite'>('new')
@@ -462,20 +463,27 @@ function AsnProcessor() {
                                             />
                                         </Stack>
                                     </Paper>
-                                    <Paper withBorder p="md" style={{ flex: 1, minHeight: '400px' }}>
+                                    <Paper withBorder p="md" style={{ minHeight: bitInspectorOpen ? '400px' : 'auto' }}>
                                         <Stack h="100%">
-                                            <Text fw={600}>Bit Inspector</Text>
-                                            <Box style={{ flex: 1, position: 'relative' }}>
-                                                <ScrollArea h="100%">
-                                                    <BitInspectorPanel
-                                                        hexInput={hexData}
-                                                        traceRoot={traceData?.trace}
-                                                        totalBits={traceData?.total_bits}
-                                                        loading={traceLoading}
-                                                        error={traceError}
-                                                    />
-                                                </ScrollArea>
-                                            </Box>
+                                            <Group justify="space-between" align="center">
+                                                <Text fw={600}>Bit Inspector</Text>
+                                                <Button size="xs" variant="subtle" onClick={() => setBitInspectorOpen((prev) => !prev)}>
+                                                    {bitInspectorOpen ? 'Hide' : 'Show'}
+                                                </Button>
+                                            </Group>
+                                            <Collapse in={bitInspectorOpen}>
+                                                <Box style={{ position: 'relative' }}>
+                                                    <ScrollArea h={350}>
+                                                        <BitInspectorPanel
+                                                            hexInput={hexData}
+                                                            traceRoot={traceData?.trace}
+                                                            totalBits={traceData?.total_bits}
+                                                            loading={traceLoading}
+                                                            error={traceError}
+                                                        />
+                                                    </ScrollArea>
+                                                </Box>
+                                            </Collapse>
                                         </Stack>
                                     </Paper>
                                 </Stack>

@@ -1,4 +1,4 @@
-import { Modal, Button, Stack, Group, Title, Text, TagsInput, Select, Divider, NumberInput, Alert } from '@mantine/core';
+import { Modal, Button, Stack, Group, Title, Text, TagsInput, Select, Divider, NumberInput, Alert, Switch } from '@mantine/core';
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { themes } from '../theme';
@@ -19,6 +19,7 @@ export function SettingsModal({ opened, onClose, currentTheme, onThemeChange }: 
     const [specsDirs, setSpecsDirs] = useState<string[]>([]);
     const [asnExtensions, setAsnExtensions] = useState<string[]>([]);
     const [splashDuration, setSplashDuration] = useState<number>(3);
+    const [debugMode, setDebugMode] = useState<boolean>(false);
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -37,6 +38,7 @@ export function SettingsModal({ opened, onClose, currentTheme, onThemeChange }: 
                     setSpecsDirs(res.data.specs_directories);
                     setAsnExtensions(res.data.asn_extensions || ['.asn', '.asn1']);
                     setSplashDuration((res.data.splash_duration || 3000) / 1000);
+                    setDebugMode(res.data.debug_mode || false);
                     setError(null);
                 })
                 .catch(err => setError(err.message))
@@ -53,7 +55,8 @@ export function SettingsModal({ opened, onClose, currentTheme, onThemeChange }: 
             const response = await axios.put('/api/config/', {
                 specs_directories: specsDirs,
                 asn_extensions: asnExtensions,
-                splash_duration: splashDuration * 1000
+                splash_duration: splashDuration * 1000,
+                debug_mode: debugMode
             });
 
             const data = response.data;
@@ -102,6 +105,12 @@ export function SettingsModal({ opened, onClose, currentTheme, onThemeChange }: 
                     onChange={(val) => setSplashDuration(Number(val))}
                     min={0}
                     max={60}
+                />
+                <Switch
+                    label="Debug Mode (opens Developer Tools)"
+                    description="Enable to show browser dev tools for debugging"
+                    checked={debugMode}
+                    onChange={(event) => setDebugMode(event.currentTarget.checked)}
                 />
 
                 <Divider my="sm" />

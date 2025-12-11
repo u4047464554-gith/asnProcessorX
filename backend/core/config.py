@@ -10,6 +10,7 @@ class AppConfig(BaseModel):
     server_host: str = "127.0.0.1"
     log_level: str = "INFO"
     splash_duration: int = 10000
+    debug_mode: bool = False  # When True, opens DevTools in production
     saved_messages_dir: str = "saved_messages"
     msc_storage_path: Optional[str] = None  # None for default (backend/msc_storage)
 

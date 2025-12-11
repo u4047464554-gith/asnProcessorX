@@ -78,6 +78,7 @@ async function shutdownBackend() {
 }
 
 let splashDuration = 10000;
+let debugMode = false;  // DevTools only open when true
 try {
     const configPath = process.platform === 'win32'
         ? path.join(process.env.APPDATA, 'AsnProcessor', 'config.json')
@@ -88,11 +89,14 @@ try {
         if (conf.splash_duration !== undefined) {
             splashDuration = conf.splash_duration;
         }
+        if (conf.debug_mode !== undefined) {
+            debugMode = conf.debug_mode;
+        }
     }
 } catch (e) {
     log(`Config read error: ${e.message}`);
 }
-log(`Splash duration: ${splashDuration}ms`);
+log(`Splash duration: ${splashDuration}ms, Debug mode: ${debugMode}`);
 let startTime = Date.now();
 
 log('--- Electron Process Starting ---');
@@ -194,8 +198,10 @@ function startBackendAndWindow() {
         return;
     }
 
-    // Open DevTools in production to see if page loads
-    if (mainWindow) mainWindow.webContents.openDevTools();
+    // Only open DevTools if debug mode is enabled in config
+    if (debugMode && mainWindow) {
+        mainWindow.webContents.openDevTools();
+    }
 
     const timeout = setTimeout(() => {
         if (!isBackendReady) {
