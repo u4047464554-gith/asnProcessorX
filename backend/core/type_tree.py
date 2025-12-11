@@ -73,6 +73,11 @@ def _extract_constraints(type_obj: Any) -> Optional[Dict[str, Any]]:
     if range_info:
         constraints["range"] = range_info
 
+    # Extract size constraints for BIT STRING / OCTET STRING
+    number_of_bits = getattr(type_obj, "number_of_bits", None)
+    if number_of_bits is not None:
+        constraints["size"] = number_of_bits
+
     if getattr(type_obj, "has_extension_marker", None):
         constraints["extensionMarker"] = True
 

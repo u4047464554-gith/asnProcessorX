@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { Group, ActionIcon, Text, UnstyledButton } from '@mantine/core';
+import { Stack, Group, ActionIcon, Text, TextInput } from '@mantine/core';
 import { IconChevronUp, IconChevronDown } from '@tabler/icons-react';
 
 interface BitValueInputProps {
@@ -12,9 +12,9 @@ interface BitValueInputProps {
 type RadixMode = 'dec' | 'hex' | 'bin';
 
 /**
- * Compact multi-radix value input with Dec/Hex/Bin views inline.
- * Active mode is editable, all views update together.
- * Supports scroll wheel, up/down arrows, and direct editing.
+ * Stacked multi-radix value input with Dec/Hex/Bin rows.
+ * Click a row to edit it - other rows update in real-time.
+ * Supports scroll wheel, up/down arrows.
  */
 export const BitValueInput: React.FC<BitValueInputProps> = ({
     value,
@@ -23,13 +23,13 @@ export const BitValueInput: React.FC<BitValueInputProps> = ({
     disabled = false
 }) => {
     const [activeMode, setActiveMode] = useState<RadixMode>('hex');
-    const [isEditing, setIsEditing] = useState(false);
     const [editValue, setEditValue] = useState('');
+    const [isEditing, setIsEditing] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
-    const containerRef = useRef<HTMLDivElement>(null);
 
-    const maxValue = (1 << Math.min(bitLength, 31)) - 1; // JS bitwise limited to 31 bits
-    const clamp = useCallback((v: number) => Math.max(0, Math.min(maxValue, v)), [maxValue]);
+    // For large bit lengths, use BigInt-like handling but stay within safe range
+    const maxValue = bitLength >= 31 ? Math.pow(2, bitLength) - 1 : (1 << bitLength) - 1;
+    const clamp = useCallback((v: number) => Math.max(0, Math.min(maxValue, Math.floor(v))), [maxValue]);
 
     // Format value for display
     const formatValue = useCallback((v: number, mode: RadixMode): string => {
@@ -41,7 +41,7 @@ export const BitValueInput: React.FC<BitValueInputProps> = ({
                 const hexDigits = Math.ceil(bitLength / 4);
                 return clamped.toString(16).toUpperCase().padStart(hexDigits, '0');
             case 'bin':
-                // Group bits by 4 (hex digit boundaries)
+                // Group bits by 4 for readability
                 const binStr = clamped.toString(2).padStart(bitLength, '0');
                 const groups = [];
                 for (let i = 0; i < binStr.length; i += 4) {
@@ -78,12 +78,12 @@ export const BitValueInput: React.FC<BitValueInputProps> = ({
 
     // Increment/decrement
     const increment = useCallback(() => {
-        if (disabled) return;
+        if (disabled || value >= maxValue) return;
         onChange(clamp(value + 1));
-    }, [value, onChange, disabled, clamp]);
+    }, [value, onChange, disabled, clamp, maxValue]);
 
     const decrement = useCallback(() => {
-        if (disabled) return;
+        if (disabled || value <= 0) return;
         onChange(clamp(value - 1));
     }, [value, onChange, disabled, clamp]);
 
@@ -91,35 +91,11 @@ export const BitValueInput: React.FC<BitValueInputProps> = ({
     const handleWheel = useCallback((e: React.WheelEvent) => {
         if (disabled) return;
         e.preventDefault();
-        if (e.deltaY < 0) {
-            increment();
-        } else {
-            decrement();
-        }
+        if (e.deltaY < 0) increment();
+        else decrement();
     }, [increment, decrement, disabled]);
 
-    // Handle keyboard
-    const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
-        if (disabled) return;
-
-        if (e.key === 'ArrowUp') {
-            e.preventDefault();
-            increment();
-        } else if (e.key === 'ArrowDown') {
-            e.preventDefault();
-            decrement();
-        } else if (e.key === 'Enter' && isEditing) {
-            const parsed = parseInput(editValue, activeMode);
-            if (parsed !== null) {
-                onChange(parsed);
-            }
-            setIsEditing(false);
-        } else if (e.key === 'Escape') {
-            setIsEditing(false);
-        }
-    }, [increment, decrement, isEditing, editValue, activeMode, onChange, disabled, parseInput]);
-
-    // Start editing
+    // Start editing a mode
     const startEditing = useCallback((mode: RadixMode) => {
         if (disabled) return;
         setActiveMode(mode);
@@ -127,16 +103,35 @@ export const BitValueInput: React.FC<BitValueInputProps> = ({
         setIsEditing(true);
     }, [value, disabled, formatValue]);
 
+    // Handle input change - update value in real-time
+    const handleInputChange = useCallback((newText: string) => {
+        setEditValue(newText);
+        const parsed = parseInput(newText, activeMode);
+        if (parsed !== null) {
+            onChange(parsed);
+        }
+    }, [activeMode, onChange, parseInput]);
+
     // Finish editing
     const finishEditing = useCallback(() => {
-        if (isEditing) {
-            const parsed = parseInput(editValue, activeMode);
-            if (parsed !== null) {
-                onChange(parsed);
-            }
-            setIsEditing(false);
+        setIsEditing(false);
+    }, []);
+
+    // Handle keyboard
+    const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+        if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            increment();
+            // Update edit value to reflect new value
+            setEditValue(formatValue(clamp(value + 1), activeMode).replace(/\s/g, ''));
+        } else if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            decrement();
+            setEditValue(formatValue(clamp(value - 1), activeMode).replace(/\s/g, ''));
+        } else if (e.key === 'Enter' || e.key === 'Escape') {
+            finishEditing();
         }
-    }, [isEditing, editValue, activeMode, onChange, parseInput]);
+    }, [increment, decrement, finishEditing, formatValue, value, activeMode, clamp]);
 
     // Focus input when editing starts
     useEffect(() => {
@@ -144,91 +139,97 @@ export const BitValueInput: React.FC<BitValueInputProps> = ({
             inputRef.current.focus();
             inputRef.current.select();
         }
-    }, [isEditing]);
+    }, [isEditing, activeMode]);
 
-    const renderMode = (mode: RadixMode) => {
-        const isActive = activeMode === mode && isEditing;
+    // Update edit value when external value changes
+    useEffect(() => {
+        if (isEditing) {
+            setEditValue(formatValue(value, activeMode).replace(/\s/g, ''));
+        }
+    }, [value, isEditing, activeMode, formatValue]);
+
+    const renderRow = (mode: RadixMode, label: string) => {
+        const isActive = activeMode === mode;
         const displayValue = formatValue(value, mode);
 
-        if (isActive) {
-            return (
-                <input
-                    ref={inputRef}
-                    value={editValue}
-                    onChange={(e) => setEditValue(e.target.value)}
-                    onBlur={finishEditing}
-                    onKeyDown={handleKeyDown}
-                    style={{
-                        fontFamily: 'monospace',
-                        fontSize: '11px',
-                        fontWeight: 600,
-                        border: '1px solid var(--mantine-color-blue-5)',
-                        borderRadius: '2px',
-                        padding: '1px 4px',
-                        background: 'var(--mantine-color-dark-6)',
-                        color: 'inherit',
-                        outline: 'none',
-                        width: mode === 'bin' ? `${bitLength * 8 + 12}px` : mode === 'hex' ? '50px' : '60px',
-                        letterSpacing: mode === 'bin' ? '1px' : 'normal'
-                    }}
-                />
-            );
-        }
-
         return (
-            <UnstyledButton
-                onClick={() => startEditing(mode)}
+            <Group
+                key={mode}
+                gap={4}
+                wrap="nowrap"
+                onClick={() => !isEditing && startEditing(mode)}
                 style={{ cursor: disabled ? 'default' : 'pointer' }}
             >
                 <Text
-                    size="xs"
-                    ff="monospace"
-                    fw={activeMode === mode ? 600 : 400}
-                    c={activeMode === mode ? undefined : 'dimmed'}
-                    style={{ letterSpacing: mode === 'bin' ? '1px' : 'normal' }}
+                    size={isActive ? 'sm' : 'xs'}
+                    c="dimmed"
+                    w={28}
+                    fw={isActive ? 600 : 400}
                 >
-                    {displayValue}
+                    {label}
                 </Text>
-            </UnstyledButton>
+
+                {isEditing && isActive ? (
+                    <TextInput
+                        ref={inputRef}
+                        size="xs"
+                        value={editValue}
+                        onChange={(e) => handleInputChange(e.currentTarget.value)}
+                        onBlur={finishEditing}
+                        onKeyDown={handleKeyDown}
+                        styles={{
+                            input: {
+                                fontFamily: 'monospace',
+                                fontWeight: 600,
+                                letterSpacing: mode === 'bin' ? '1px' : 'normal',
+                                padding: '2px 6px',
+                                height: 'auto',
+                                minHeight: 'unset',
+                                backgroundColor: 'var(--mantine-color-dark-6, #fff)',
+                                color: 'var(--mantine-color-text, #000)'
+                            }
+                        }}
+                        style={{
+                            flex: 1,
+                            maxWidth: mode === 'bin' ? 300 : 120
+                        }}
+                    />
+                ) : (
+                    <Text
+                        size={isActive ? 'sm' : 'xs'}
+                        fw={isActive ? 700 : 400}
+                        c={isActive ? undefined : 'dimmed'}
+                        ff="monospace"
+                        style={{
+                            letterSpacing: mode === 'bin' ? '1px' : 'normal',
+                            flex: 1
+                        }}
+                    >
+                        {displayValue}
+                    </Text>
+                )}
+            </Group>
         );
     };
 
     return (
-        <Group
-            ref={containerRef}
-            onWheel={handleWheel}
-            onKeyDown={!isEditing ? handleKeyDown : undefined}
-            tabIndex={0}
-            gap={4}
-            wrap="nowrap"
-            style={{
-                outline: 'none',
-                cursor: disabled ? 'default' : 'pointer',
-                opacity: disabled ? 0.5 : 1
-            }}
-        >
-            {/* Dec */}
-            <Text size="xs" c="dimmed" w={24}>Dec</Text>
-            {renderMode('dec')}
+        <Group gap="xs" wrap="nowrap" align="flex-start" onWheel={handleWheel}>
+            <Stack gap={2} style={{ flex: 1 }}>
+                {renderRow('dec', 'Dec')}
+                {renderRow('hex', 'Hex')}
+                {renderRow('bin', 'Bin')}
+            </Stack>
 
-            {/* Hex */}
-            <Text size="xs" c="dimmed" w={24} ml={8}>Hex</Text>
-            {renderMode('hex')}
-
-            {/* Bin */}
-            <Text size="xs" c="dimmed" w={22} ml={8}>Bin</Text>
-            {renderMode('bin')}
-
-            {/* Buttons */}
+            {/* Up/Down buttons */}
             {!disabled && (
-                <Group gap={0} ml={4}>
+                <Stack gap={0}>
                     <ActionIcon
                         size="xs"
                         variant="subtle"
                         onClick={increment}
                         disabled={value >= maxValue}
                     >
-                        <IconChevronUp size={12} />
+                        <IconChevronUp size={14} />
                     </ActionIcon>
                     <ActionIcon
                         size="xs"
@@ -236,13 +237,13 @@ export const BitValueInput: React.FC<BitValueInputProps> = ({
                         onClick={decrement}
                         disabled={value <= 0}
                     >
-                        <IconChevronDown size={12} />
+                        <IconChevronDown size={14} />
                     </ActionIcon>
-                </Group>
+                </Stack>
             )}
 
-            {/* Bit info */}
-            <Text size="xs" c="dimmed" ml={4}>
+            {/* Bit count indicator */}
+            <Text size="xs" c="dimmed" style={{ alignSelf: 'center' }}>
                 {bitLength}b
             </Text>
         </Group>
