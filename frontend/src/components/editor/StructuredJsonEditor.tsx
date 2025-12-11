@@ -145,28 +145,67 @@ function NodeRenderer({ node, value, onChange, level, path, label, isOptionalGho
     const fieldName = label || node.name || '<anonymous>';
     const kind = getKind(node);
 
+    // Generate a default value recursively for a node
+    const createDefault = (n: DefinitionNode, useCache = false): any => {
+        // 1. Schema default
+        if (n.default !== undefined) return n.default;
+
+        // 2. Cache
+        if (useCache && n.name) {
+            const cached = getCachedValue(n.name);
+            if (cached !== undefined) return cached;
+        }
+
+        // 3. Type defaults
+        const k = getKind(n);
+        if (k === 'SEQUENCE') {
+            const defaults: Record<string, any> = {};
+            // Recursively populate mandatory children
+            if (n.children) {
+                n.children.forEach(child => {
+                    if (!child.optional) {
+                        defaults[child.name || ''] = createDefault(child, false);
+                    }
+                });
+            }
+            return defaults;
+        }
+        if (k === 'SEQUENCE OF') return [];
+        if (k === 'INTEGER') return 0;
+        if (k === 'BOOLEAN') return false;
+        if (k.includes('STRING')) return '';
+        if (k === 'ENUMERATED') {
+            const choices = (n.constraints?.choices || []) as string[];
+            return choices.length > 0 ? choices[0] : '';
+        }
+        if (k === 'NULL') return null;
+        if (k === 'CHOICE') {
+            // For choice, we can't easily pick a default without user input, 
+            // but we can pick the first option to be helpful?
+            // Or just return null/empty object context?
+            // Safest is null/empty for Choice until constructed. 
+            // But actually, for valid ASN.1, a choice needs a selection.
+            // Let's pick the first option.
+            if (n.children && n.children.length > 0) {
+                const first = n.children[0];
+                return { [first.name || 'option']: createDefault(first, false) };
+            }
+            return {};
+        }
+        return null;
+    };
+
     // Handle "Ghost" state (Optional field not present)
     if (isOptionalGhost) {
         const handleActivate = () => {
-            // Try to find default:
-            // 1. Schema default
-            // 2. Cache
-            // 3. Type default
-            let initialValue = node.default;
-            if (initialValue === undefined) {
-                initialValue = getCachedValue(node.name || '');
-            }
-            if (initialValue === undefined) {
-                // Fallback type defaults
-                if (kind === 'INTEGER') initialValue = 0;
-                else if (kind === 'BOOLEAN') initialValue = false;
-                else if (kind.includes('STRING')) initialValue = '';
-                else if (kind === 'SEQUENCE') initialValue = {};
-                else if (kind === 'SEQUENCE OF') initialValue = [];
-                else initialValue = null;
-            }
+            // Use the robust recursive creator, allow cache
+            const initialValue = createDefault(node, true);
             onChange(initialValue);
         };
+
+        const displayName = fieldName !== '<anonymous>' && fieldName !== ''
+            ? fieldName
+            : (node.kind === 'Sequence' ? 'Extension Group' : 'Field');
 
         return (
             <Group ml={level * 16} py={4} style={{ opacity: 0.5 }}>
@@ -174,7 +213,7 @@ function NodeRenderer({ node, value, onChange, level, path, label, isOptionalGho
                     <IconPlus size="0.8rem" />
                 </ActionIcon>
                 <Text component="div" size="sm" c="dimmed" style={{ cursor: 'pointer' }} onClick={handleActivate}>
-                    {fieldName} <Badge size="xs" variant="outline" color="gray">OPTIONAL</Badge>
+                    {displayName} <Badge size="xs" variant="outline" color="gray">OPTIONAL</Badge>
                 </Text>
             </Group>
         );
@@ -254,14 +293,10 @@ function NodeRenderer({ node, value, onChange, level, path, label, isOptionalGho
         const arrValue = Array.isArray(value) ? value : [];
 
         const handleAdd = () => {
-            // Create default item
+            // Create default item with recursive population
             let newItem = null;
             if (itemType) {
-                const k = getKind(itemType);
-                if (k === 'INTEGER') newItem = 0;
-                else if (k === 'SEQUENCE') newItem = {};
-                else if (k.includes('STRING')) newItem = '';
-                // ... simple defaults
+                newItem = createDefault(itemType, false);
             }
             onChange([...arrValue, newItem]);
         };
