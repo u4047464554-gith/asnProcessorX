@@ -231,6 +231,19 @@ function NodeRenderer({ node, value, onChange, level, path, label, isOptionalGho
             } else {
                 newObj[childName] = childValue;
             }
+
+            // Auto-repair: Ensure all other MANDATORY children exist
+            // This fixes cases where the object was partially empty or previously broken
+            if (node.children) {
+                node.children.forEach(child => {
+                    const key = child.name || '';
+                    // If mandatory and missing, create default
+                    if (!child.optional && newObj[key] === undefined) {
+                        newObj[key] = createDefault(child, false);
+                    }
+                });
+            }
+
             onChange(newObj);
         };
 

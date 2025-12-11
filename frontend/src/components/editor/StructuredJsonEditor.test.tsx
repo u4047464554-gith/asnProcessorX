@@ -163,4 +163,32 @@ describe('StructuredJsonEditor', () => {
         // onChange should be called with updated tuple.
         expect(mockOnChange).toHaveBeenCalledWith(['0xFF', 8]);
     });
+
+    it('auto-repairs missing mandatory nested fields when editing', () => {
+        const schema: DefinitionNode = {
+            type: 'SEQUENCE', kind: 'Sequence', name: 'Parent',
+            children: [
+                {
+                    type: 'SEQUENCE', kind: 'Sequence', name: 'MandatoryChild', optional: false,
+                    children: [
+                        { type: 'INTEGER', kind: 'Integer', name: 'GrandChild', optional: false }
+                    ]
+                },
+                { type: 'INTEGER', kind: 'Integer', name: 'OptionalSibling', optional: true }
+            ]
+        };
+
+        renderWithMantine(
+            <StructuredJsonEditor data={{}} schema={schema} onChange={mockOnChange} />
+        );
+
+        // Activate OptionalSibling (ghost)
+        fireEvent.click(screen.getByLabelText('Activate field'));
+
+        // onChange should include BOTH OptionalSibling and repaired MandatoryChild
+        expect(mockOnChange).toHaveBeenCalledWith(expect.objectContaining({
+            OptionalSibling: 0,
+            MandatoryChild: { GrandChild: 0 }
+        }));
+    });
 });
