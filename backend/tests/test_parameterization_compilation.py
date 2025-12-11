@@ -130,3 +130,141 @@ END
         finally:
             client.put("/api/config/", json=original_config)
             shutil.rmtree(tmp_dir)
+
+    def test_nested_parameterization_with_literal(self, client):
+        """
+        Test nested parameterization where one inner type uses a literal value.
+        This reproduces the 'int object is not subscriptable' crash by ensuring
+        the compiler encounters an int literal when scanning for dummy parameter substitutions.
+        """
+        tmp_dir = tempfile.mkdtemp()
+        try:
+            proto_name = "nested_literal_protocol"
+            proto_dir = os.path.join(tmp_dir, proto_name)
+            os.makedirs(proto_dir)
+            
+            asn_content = """
+NestedParam DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+    Inner { INTEGER: val } ::= SEQUENCE {
+        field INTEGER (0..val)
+    }
+    
+    -- Outer takes a type parameter T, but uses Inner { 10 } (literal) internally.
+    -- The compiler iterates b's parameters ([10]) checking if they match 'T'.
+    Outer { T } ::= SEQUENCE {
+        a T,
+        b Inner { 10 }
+    }
+    
+    -- Instantiation
+    MyOuter ::= Outer { BOOLEAN }
+
+END
+"""
+            with open(os.path.join(proto_dir, "nested.asn"), "w") as f:
+                f.write(asn_content)
+            
+            # Get original config
+            response = client.get("/api/config/")
+            original_config = response.json()
+            
+            # Add external directory
+            new_specs = original_config["specs_directories"] + [tmp_dir]
+            response = client.put("/api/config/", json={
+                "specs_directories": new_specs
+            })
+            
+            assert response.status_code == 200
+            data = response.json()
+            
+            if data.get("compilation_status") == "warning":
+                error_msg = data["compilation_errors"].get(proto_name, "Unknown error")
+                pytest.fail(f"Compilation failed for nested literal: {error_msg}")
+
+            assert data.get("compilation_status") == "success"
+
+        finally:
+            client.put("/api/config/", json=original_config)
+            shutil.rmtree(tmp_dir)
+
+    def test_parameterization_complex_types(self, client):
+        """
+        Test parameterization with various complex types (CHOICE, ENUM, SEQUENCE OF)
+        and mixed integer literals to ensure robust handling across the board.
+        """
+        tmp_dir = tempfile.mkdtemp()
+        try:
+            proto_name = "complex_param_protocol"
+            proto_dir = os.path.join(tmp_dir, proto_name)
+            os.makedirs(proto_dir)
+            
+            asn_content = """
+ComplexParam DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+    -- 1. Parameterized CHOICE
+    ParamChoice { T } ::= CHOICE {
+        a T,
+        b INTEGER
+    }
+
+    -- 2. Parameterized SEQUENCE OF with literal constraint
+    ParamSeqOf { INTEGER: size } ::= SEQUENCE OF INTEGER (0..size)
+
+    -- 3. Deep nesting with mix of Type and Value params
+    Deep { T, INTEGER: maxVal } ::= SEQUENCE {
+        item T,
+        list ParamSeqOf { maxVal },  -- Literal substitution check
+        choice ParamChoice { T }
+    }
+    
+    -- Instantiation
+    MyComplex ::= Deep { BOOLEAN, 100 }
+    
+    -- Verify literal handling in various positions
+    LiteralUser ::= SEQUENCE {
+        s1 ParamSeqOf { 10 },
+        s2 ParamSeqOf { 20 }
+    }
+
+END
+"""
+            with open(os.path.join(proto_dir, "complex.asn"), "w") as f:
+                f.write(asn_content)
+            
+            # Get original config
+            response = client.get("/api/config/")
+            original_config = response.json()
+            
+            # Add external directory
+            new_specs = original_config["specs_directories"] + [tmp_dir]
+            response = client.put("/api/config/", json={
+                "specs_directories": new_specs
+            })
+            
+            assert response.status_code == 200
+            data = response.json()
+            
+            if data.get("compilation_status") == "warning":
+                error_msg = data["compilation_errors"].get(proto_name, "Unknown error")
+                pytest.fail(f"Compilation failed for complex types: {error_msg}")
+
+            assert data.get("compilation_status") == "success"
+            
+            # Basic encode text to ensure runtime works
+            test_data = {
+                "item": True,
+                "list": [1, 50, 99],
+                "choice": {"a": False}
+            }
+            encode_resp = client.post("/api/asn/encode", json={
+                "protocol": proto_name,
+                "type_name": "MyComplex",
+                "data": test_data
+            })
+            assert encode_resp.status_code == 200
+            assert encode_resp.json()["status"] == "success"
+
+        finally:
+            client.put("/api/config/", json=original_config)
+            shutil.rmtree(tmp_dir)

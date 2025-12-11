@@ -640,7 +640,9 @@ class Compiler(object):
 
             if 'actual-parameters' in type_descriptor:
                 for i, parameter in enumerate(type_descriptor['actual-parameters']):
-                    if isinstance(parameter, dict) and parameter['type'] == dummy_parameter:
+                    if parameter == dummy_parameter:
+                        type_descriptor['actual-parameters'][i] = actual_parameter
+                    elif isinstance(parameter, dict) and parameter['type'] == dummy_parameter:
                         type_descriptor['actual-parameters'][i] = actual_parameter
 
             if 'size' in type_descriptor:
