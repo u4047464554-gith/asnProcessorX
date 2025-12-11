@@ -186,6 +186,15 @@ function NodeRenderer({ node, value, onChange, level, path, label, isOptionalGho
         if (k === 'SEQUENCE OF') return [];
         if (k === 'INTEGER') return 0;
         if (k === 'BOOLEAN') return false;
+        // BIT STRING and OCTET STRING need tuple format [hex, bits]
+        if (k === 'BIT STRING') {
+            const size = n.constraints?.size || (n.constraints?.range as any)?.min || 0;
+            return ['', size];
+        }
+        if (k === 'OCTET STRING') {
+            return ['', 0];
+        }
+        // IA5String, UTF8String, etc.
         if (k.includes('STRING')) return '';
         if (k === 'ENUMERATED') {
             const choices = (n.constraints?.choices || []) as string[];
