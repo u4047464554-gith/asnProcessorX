@@ -176,7 +176,8 @@ export function SettingsModal({ opened, onClose, currentTheme, onThemeChange }: 
                                 fontFamily: 'monospace',
                                 whiteSpace: 'pre-wrap',
                                 wordBreak: 'break-word',
-                                backgroundColor: 'var(--mantine-color-dark-6)',
+                                backgroundColor: 'var(--mantine-color-dark-6, #f0f0f0)',
+                                color: 'var(--mantine-color-text, #333)',
                                 padding: '8px',
                                 borderRadius: '4px',
                                 marginBottom: index < compilationWarnings.length - 1 ? '8px' : 0
