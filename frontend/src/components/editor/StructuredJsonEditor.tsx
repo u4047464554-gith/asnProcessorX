@@ -284,7 +284,7 @@ function NodeRenderer({ node, value, onChange, level, path, label, isOptionalGho
                 <Collapse in={expanded}>
                     {isEmpty ? (
                         <Box ml={8} py={4} style={{ borderLeft: '1px solid var(--mantine-color-default-border)', marginLeft: 7 }}>
-                            <Text size="xs" c="dimmed" style={{ fontStyle: 'italic' }}>Empty sequence</Text>
+                            <Badge size="xs" variant="light" color="gray">Extension placeholder</Badge>
                         </Box>
                     ) : (
                         <Stack gap={2} style={{ borderLeft: '1px solid var(--mantine-color-default-border)', marginLeft: 7 }}>
