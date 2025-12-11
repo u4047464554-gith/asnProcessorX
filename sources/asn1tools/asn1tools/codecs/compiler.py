@@ -195,6 +195,8 @@ class Compiler(object):
         self.recursive_types = []
         self.compiled = {}
         self.current_type_descriptor = None
+        # Track implicit cross-module resolutions for warning generation
+        self._implicit_imports = {}  # {module_name: {from_module: [type_names]}}
 
     def types_backtrace_push(self, type_name):
         self._types_backtrace.append(type_name)
@@ -208,6 +210,26 @@ class Compiler(object):
 
     def process(self):
         self.pre_process()
+        compiled = self.do_process()
+        self._emit_implicit_import_suggestions()
+        return compiled
+
+    def _emit_implicit_import_suggestions(self):
+        """Emit consolidated warnings with suggested IMPORTS blocks."""
+        import warnings
+        for module_name, imports_by_source in self._implicit_imports.items():
+            lines = [f"Module '{module_name}' uses types without explicit IMPORTS."]
+            lines.append("Suggested addition to the module:")
+            lines.append("")
+            lines.append("IMPORTS")
+            for from_module, type_names in sorted(imports_by_source.items()):
+                type_list = ", ".join(sorted(set(type_names)))
+                lines.append(f"    {type_list}")
+                lines.append(f"        FROM {from_module}")
+            lines.append(";")
+            warnings.warn("\n".join(lines), stacklevel=2)
+
+    def do_process(self):
 
         compiled = {}
 
@@ -1062,14 +1084,13 @@ class Compiler(object):
             if other_module_name == module_name:
                 continue
             if name in other_module[section]:
-                # Found in another module - use it implicitly
-                import warnings
-                warnings.warn(
-                    f"{begin_debug_string} '{name}' used in module '{module_name}' "
-                    f"but not imported. Resolved implicitly from module '{other_module_name}'. "
-                    f"Consider adding: IMPORTS {name} FROM {other_module_name};",
-                    stacklevel=4
-                )
+                # Track for consolidated warning
+                if module_name not in self._implicit_imports:
+                    self._implicit_imports[module_name] = {}
+                if other_module_name not in self._implicit_imports[module_name]:
+                    self._implicit_imports[module_name][other_module_name] = []
+                self._implicit_imports[module_name][other_module_name].append(name)
+                # Return the resolved item
                 return other_module[section][name], other_module_name
 
         raise CompileError("{} '{}' not found in module '{}'.".format(
