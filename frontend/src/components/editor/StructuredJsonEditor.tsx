@@ -530,6 +530,15 @@ function NodeRenderer({ node, value, onChange, level, path, label, isOptionalGho
         );
     }
 
+    if (kind === 'NULL') {
+        return (
+            <Box ml={level * 16} mb={4}>
+                <NodeLabel fieldName={fieldName} node={node} onChange={onChange} />
+                <Badge size="xs" variant="light" color="gray">NULL</Badge>
+            </Box>
+        );
+    }
+
     // Default fallback
     return (
         <Box ml={level * 16} mb={4}>
