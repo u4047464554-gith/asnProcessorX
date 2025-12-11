@@ -456,10 +456,16 @@ function NodeRenderer({ node, value, onChange, level, path, label, isOptionalGho
 
         // Get bit length from constraints or tuple
         const constraints = node.constraints || {};
-        const constraintSize = constraints.size || constraints.max_size || constraints.min_size;
+        const range = constraints.range as { min?: number; max?: number } | undefined;
+        // Size can be in constraints.size OR in range.min/max (for SIZE(24) style)
+        const constraintSize = constraints.size
+            || constraints.max_size
+            || constraints.min_size
+            || (range?.min === range?.max ? range?.min : null);
         const tupleLen = isTuple ? value[1] : null;
 
         // For BIT STRING, prioritize: constraint > tuple > calculated from hex
+        // Always use constraint if available!
         const bitLength = !isOctetString
             ? (typeof constraintSize === 'number' ? constraintSize : (tupleLen || Math.max(cleanHex.length * 4, 1)))
             : Math.ceil(cleanHex.length / 2) * 8;

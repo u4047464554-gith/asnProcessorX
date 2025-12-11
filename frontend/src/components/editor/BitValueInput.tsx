@@ -187,8 +187,8 @@ export const BitValueInput: React.FC<BitValueInputProps> = ({
                                 padding: '2px 6px',
                                 height: 'auto',
                                 minHeight: 'unset',
-                                backgroundColor: 'var(--mantine-color-dark-6, #fff)',
-                                color: 'var(--mantine-color-text, #000)'
+                                backgroundColor: 'var(--mantine-color-body)',
+                                color: 'var(--mantine-color-text)'
                             }
                         }}
                         style={{
