@@ -1056,6 +1056,22 @@ class Compiler(object):
                             module_name,
                             from_module_name))
 
+        # Fallback: Implicit cross-module resolution
+        # Search all other modules for the type (for specs without explicit IMPORTS)
+        for other_module_name, other_module in self._specification.items():
+            if other_module_name == module_name:
+                continue
+            if name in other_module[section]:
+                # Found in another module - use it implicitly
+                import warnings
+                warnings.warn(
+                    f"{begin_debug_string} '{name}' used in module '{module_name}' "
+                    f"but not imported. Resolved implicitly from module '{other_module_name}'. "
+                    f"Consider adding: IMPORTS {name} FROM {other_module_name};",
+                    stacklevel=4
+                )
+                return other_module[section][name], other_module_name
+
         raise CompileError("{} '{}' not found in module '{}'.".format(
             begin_debug_string,
             name,

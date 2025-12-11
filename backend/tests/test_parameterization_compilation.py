@@ -268,3 +268,81 @@ END
         finally:
             client.put("/api/config/", json=original_config)
             shutil.rmtree(tmp_dir)
+
+    def test_implicit_cross_module_resolution(self, client):
+        """
+        Test that types defined in one module can be used in another module
+        WITHOUT explicit IMPORTS. This supports 3GPP-style specs that assume
+        implicit cross-module resolution.
+        """
+        tmp_dir = tempfile.mkdtemp()
+        try:
+            proto_name = "implicit_import_protocol"
+            proto_dir = os.path.join(tmp_dir, proto_name)
+            os.makedirs(proto_dir)
+            
+            # File 1: Defines FrequencyGridId (like TB-6G-Uu-Interface-TimeFreqGrid)
+            asn_content_1 = """
+TimeFreqGrid DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+    EXPORTS ALL;
+    
+    FrequencyGridId ::= INTEGER (0..255)
+    
+    TimeSlotId ::= INTEGER (0..31)
+
+END
+"""
+            # File 2: Uses FrequencyGridId WITHOUT importing it
+            # (like TB-6G-Uu-Interface-ParameterizedTypes)
+            asn_content_2 = """
+ParameterizedTypes DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+    -- NOTE: No IMPORTS clause! Relies on implicit resolution.
+    
+    -- Uses FrequencyGridId from TimeFreqGrid without importing
+    ResourceConfig ::= SEQUENCE {
+        freqId  FrequencyGridId,
+        name    UTF8String
+    }
+
+END
+"""
+            with open(os.path.join(proto_dir, "timefreq.asn"), "w") as f:
+                f.write(asn_content_1)
+            with open(os.path.join(proto_dir, "paramtypes.asn"), "w") as f:
+                f.write(asn_content_2)
+            
+            # Get original config
+            response = client.get("/api/config/")
+            original_config = response.json()
+            
+            # Add external directory
+            new_specs = original_config["specs_directories"] + [tmp_dir]
+            response = client.put("/api/config/", json={
+                "specs_directories": new_specs
+            })
+            
+            assert response.status_code == 200
+            data = response.json()
+            
+            if data.get("compilation_status") == "warning":
+                error_msg = data["compilation_errors"].get(proto_name, "Unknown error")
+                pytest.fail(f"Compilation failed for implicit import: {error_msg}")
+
+            assert data.get("compilation_status") == "success"
+            
+            # Verify we can encode using the type that relies on implicit import
+            test_data = {
+                "freqId": 42,
+                "name": "TestResource"
+            }
+            encode_resp = client.post("/api/asn/encode", json={
+                "protocol": proto_name,
+                "type_name": "ResourceConfig",
+                "data": test_data
+            })
+            assert encode_resp.status_code == 200
+            assert encode_resp.json()["status"] == "success"
+
+        finally:
+            client.put("/api/config/", json=original_config)
+            shutil.rmtree(tmp_dir)
