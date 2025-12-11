@@ -45,6 +45,20 @@ async def health_check():
         "protocols_loaded": len(manager.list_protocols())
     }
 
+@app.post("/api/shutdown")
+async def shutdown():
+    """Gracefully shutdown the backend server."""
+    import os
+    import signal
+    import asyncio
+    
+    async def _shutdown():
+        await asyncio.sleep(0.5)  # Give time for response to be sent
+        os.kill(os.getpid(), signal.SIGTERM)
+    
+    asyncio.create_task(_shutdown())
+    return {"status": "shutting_down"}
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

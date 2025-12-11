@@ -11,7 +11,7 @@ let isBackendReady = false;
 // Log setup to C:\Users\User\AsnProcessorLogs
 const logDir = path.join(process.env.USERPROFILE, 'AsnProcessorLogs');
 if (!fs.existsSync(logDir)) {
-    try { fs.mkdirSync(logDir); } catch(e) {}
+    try { fs.mkdirSync(logDir); } catch (e) { }
 }
 const logPath = path.join(logDir, 'electron.log');
 
@@ -19,16 +19,70 @@ function log(msg) {
     try {
         const text = `[${new Date().toISOString()}] ${msg}\n`;
         fs.appendFileSync(logPath, text);
-    } catch(e) {}
+    } catch (e) { }
     console.log(msg);
+}
+
+// Track backend port for graceful shutdown
+let backendPort = null;
+
+// Graceful shutdown: call API first, then force kill as fallback
+async function shutdownBackend() {
+    if (!backendProcess) return;
+
+    log('Initiating backend shutdown...');
+
+    // Try graceful shutdown via API
+    if (backendPort) {
+        try {
+            log(`Calling shutdown API on port ${backendPort}`);
+            const http = require('http');
+            const req = http.request({
+                hostname: '127.0.0.1',
+                port: backendPort,
+                path: '/api/shutdown',
+                method: 'POST',
+                timeout: 2000
+            });
+            req.on('error', (e) => log(`Shutdown API error: ${e.message}`));
+            req.end();
+
+            // Wait for process to exit gracefully
+            await new Promise(resolve => setTimeout(resolve, 1500));
+
+            if (!backendProcess) {
+                log('Backend shut down gracefully');
+                return;
+            }
+        } catch (e) {
+            log(`Graceful shutdown failed: ${e.message}`);
+        }
+    }
+
+    // Fallback: force kill
+    if (backendProcess) {
+        const pid = backendProcess.pid;
+        log(`Force killing backend process (PID: ${pid})`);
+
+        try {
+            if (process.platform === 'win32') {
+                require('child_process').execSync(`taskkill /PID ${pid} /F /T`, { stdio: 'ignore' });
+            } else {
+                backendProcess.kill('SIGKILL');
+            }
+        } catch (e) {
+            log(`Error force killing: ${e.message}`);
+        }
+        backendProcess = null;
+    }
 }
 
 let splashDuration = 10000;
 try {
-    const configPath = process.platform === 'win32' 
+    const configPath = process.platform === 'win32'
         ? path.join(process.env.APPDATA, 'AsnProcessor', 'config.json')
         : path.join(process.env.HOME, '.config', 'asn_processor', 'config.json');
-        
+
     if (fs.existsSync(configPath)) {
         const conf = JSON.parse(fs.readFileSync(configPath, 'utf8'));
         if (conf.splash_duration !== undefined) {
@@ -60,7 +114,7 @@ if (!gotTheLock) {
     app.whenReady().then(() => {
         log('App Ready');
         startBackendAndWindow();
-        
+
         globalShortcut.register('CommandOrControl+Shift+I', () => {
             if (mainWindow) mainWindow.webContents.toggleDevTools();
         });
@@ -92,17 +146,9 @@ function createWindow() {
         });
     }
 
-    mainWindow.on('closed', () => {
+    mainWindow.on('closed', async () => {
         // Clean up backend process when window closes
-        if (backendProcess) {
-            log('Window closed, killing backend process');
-            try {
-                backendProcess.kill();
-            } catch (e) {
-                log(`Error killing backend: ${e.message}`);
-            }
-            backendProcess = null;
-        }
+        await shutdownBackend();
         mainWindow = null;
     });
 }
@@ -113,7 +159,7 @@ function startBackendAndWindow() {
         createWindow();
         return;
     }
-    createWindow(); 
+    createWindow();
 
     // Clean up any existing backend process
     if (backendProcess) {
@@ -125,7 +171,7 @@ function startBackendAndWindow() {
             log(`Error killing existing backend: ${e.message}`);
         }
     }
-    
+
     isBackendReady = false;
     buffer = '';
 
@@ -139,7 +185,7 @@ function startBackendAndWindow() {
     log(`Spawning backend: ${backendPath}`);
     const distPath = path.join(process.resourcesPath, 'dist');
     log(`Frontend Dist Path: ${distPath}`);
-    
+
     try {
         backendProcess = spawn(backendPath, [distPath]);
     } catch (e) {
@@ -161,7 +207,7 @@ function startBackendAndWindow() {
     backendProcess.stdout.on('data', (data) => {
         const chunk = data.toString();
         buffer += chunk;
-        
+
         // Log first few lines
         if (buffer.length < 2000) log(`Backend STDOUT: ${chunk.trim()}`);
 
@@ -171,8 +217,9 @@ function startBackendAndWindow() {
                 isBackendReady = true;
                 clearTimeout(timeout);
                 const port = match[1];
+                backendPort = parseInt(port, 10);  // Store for graceful shutdown
                 log(`Backend ready on port ${port}`);
-                
+
                 const elapsed = Date.now() - startTime;
                 const remaining = Math.max(0, splashDuration - elapsed);
                 log(`Waiting ${remaining}ms for splash...`);
@@ -207,7 +254,7 @@ function startBackendAndWindow() {
             reportError(`Backend process exited unexpectedly (code ${code}).\nCheck logs in ${logDir}`);
         }
     });
-    
+
     backendProcess.on('error', (err) => {
         log(`Backend process error: ${err.message}`);
         clearTimeout(timeout);
@@ -229,42 +276,22 @@ function reportError(msg) {
     mainWindow.loadURL(errorHtml);
 }
 
-app.on('window-all-closed', () => {
+app.on('window-all-closed', async () => {
     // Clean up backend before quitting
-    if (backendProcess) {
-        log('App closing, killing backend process');
-        try {
-            backendProcess.kill();
-            backendProcess = null;
-        } catch (e) {
-            log(`Error killing backend: ${e.message}`);
-        }
-    }
+    await shutdownBackend();
     if (process.platform !== 'darwin') app.quit();
 });
 
-app.on('will-quit', (event) => {
+app.on('will-quit', async (event) => {
     if (backendProcess) {
-        log('App will-quit, killing backend process');
-        try {
-            backendProcess.kill();
-            backendProcess = null;
-        } catch (e) {
-            log(`Error killing backend: ${e.message}`);
-        }
+        event.preventDefault();
+        await shutdownBackend();
+        app.quit();
     }
 });
 
-app.on('before-quit', () => {
-    if (backendProcess) {
-        log('App before-quit, killing backend process');
-        try {
-            backendProcess.kill();
-            backendProcess = null;
-        } catch (e) {
-            log(`Error killing backend: ${e.message}`);
-        }
-    }
+app.on('before-quit', async () => {
+    await shutdownBackend();
 });
 
 app.on('activate', () => {
