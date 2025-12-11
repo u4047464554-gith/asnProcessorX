@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { Stack, Text, Group, ActionIcon, Box, UnstyledButton } from '@mantine/core';
+import { Group, ActionIcon, Text, UnstyledButton } from '@mantine/core';
 import { IconChevronUp, IconChevronDown } from '@tabler/icons-react';
 
 interface BitValueInputProps {
@@ -12,9 +12,9 @@ interface BitValueInputProps {
 type RadixMode = 'dec' | 'hex' | 'bin';
 
 /**
- * Multi-radix value input with Dec/Hex/Bin views.
- * Active mode is large, others are smaller.
- * Supports up/down arrows, scroll wheel, and direct editing.
+ * Compact multi-radix value input with Dec/Hex/Bin views inline.
+ * Active mode is editable, all views update together.
+ * Supports scroll wheel, up/down arrows, and direct editing.
  */
 export const BitValueInput: React.FC<BitValueInputProps> = ({
     value,
@@ -28,32 +28,33 @@ export const BitValueInput: React.FC<BitValueInputProps> = ({
     const inputRef = useRef<HTMLInputElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
 
-    const maxValue = (1 << bitLength) - 1;
-    const clamp = (v: number) => Math.max(0, Math.min(maxValue, v));
+    const maxValue = (1 << Math.min(bitLength, 31)) - 1; // JS bitwise limited to 31 bits
+    const clamp = useCallback((v: number) => Math.max(0, Math.min(maxValue, v)), [maxValue]);
 
     // Format value for display
-    const formatValue = (v: number, mode: RadixMode): string => {
+    const formatValue = useCallback((v: number, mode: RadixMode): string => {
+        const clamped = clamp(v);
         switch (mode) {
             case 'dec':
-                return v.toString();
+                return clamped.toString();
             case 'hex':
                 const hexDigits = Math.ceil(bitLength / 4);
-                return v.toString(16).toUpperCase().padStart(hexDigits, '0');
+                return clamped.toString(16).toUpperCase().padStart(hexDigits, '0');
             case 'bin':
                 // Group bits by 4 (hex digit boundaries)
-                const binStr = v.toString(2).padStart(bitLength, '0');
+                const binStr = clamped.toString(2).padStart(bitLength, '0');
                 const groups = [];
                 for (let i = 0; i < binStr.length; i += 4) {
-                    groups.push(binStr.slice(i, i + 4));
+                    groups.push(binStr.slice(i, Math.min(i + 4, binStr.length)));
                 }
                 return groups.join(' ');
         }
-    };
+    }, [bitLength, clamp]);
 
     // Parse input value
-    const parseInput = (input: string, mode: RadixMode): number | null => {
+    const parseInput = useCallback((input: string, mode: RadixMode): number | null => {
         const cleaned = input.replace(/\s/g, '').trim();
-        if (!cleaned) return null;
+        if (!cleaned) return 0;
 
         try {
             let parsed: number;
@@ -73,7 +74,7 @@ export const BitValueInput: React.FC<BitValueInputProps> = ({
         } catch {
             return null;
         }
-    };
+    }, [clamp]);
 
     // Increment/decrement
     const increment = useCallback(() => {
@@ -116,7 +117,7 @@ export const BitValueInput: React.FC<BitValueInputProps> = ({
         } else if (e.key === 'Escape') {
             setIsEditing(false);
         }
-    }, [increment, decrement, isEditing, editValue, activeMode, onChange, disabled]);
+    }, [increment, decrement, isEditing, editValue, activeMode, onChange, disabled, parseInput]);
 
     // Start editing
     const startEditing = useCallback((mode: RadixMode) => {
@@ -124,7 +125,7 @@ export const BitValueInput: React.FC<BitValueInputProps> = ({
         setActiveMode(mode);
         setEditValue(formatValue(value, mode).replace(/\s/g, ''));
         setIsEditing(true);
-    }, [value, disabled]);
+    }, [value, disabled, formatValue]);
 
     // Finish editing
     const finishEditing = useCallback(() => {
@@ -135,7 +136,7 @@ export const BitValueInput: React.FC<BitValueInputProps> = ({
             }
             setIsEditing(false);
         }
-    }, [isEditing, editValue, activeMode, onChange]);
+    }, [isEditing, editValue, activeMode, onChange, parseInput]);
 
     // Focus input when editing starts
     useEffect(() => {
@@ -145,116 +146,105 @@ export const BitValueInput: React.FC<BitValueInputProps> = ({
         }
     }, [isEditing]);
 
-    const renderModeRow = (mode: RadixMode, label: string) => {
-        const isActive = activeMode === mode;
+    const renderMode = (mode: RadixMode) => {
+        const isActive = activeMode === mode && isEditing;
         const displayValue = formatValue(value, mode);
+
+        if (isActive) {
+            return (
+                <input
+                    ref={inputRef}
+                    value={editValue}
+                    onChange={(e) => setEditValue(e.target.value)}
+                    onBlur={finishEditing}
+                    onKeyDown={handleKeyDown}
+                    style={{
+                        fontFamily: 'monospace',
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        border: '1px solid var(--mantine-color-blue-5)',
+                        borderRadius: '2px',
+                        padding: '1px 4px',
+                        background: 'var(--mantine-color-dark-6)',
+                        color: 'inherit',
+                        outline: 'none',
+                        width: mode === 'bin' ? `${bitLength * 8 + 12}px` : mode === 'hex' ? '50px' : '60px',
+                        letterSpacing: mode === 'bin' ? '1px' : 'normal'
+                    }}
+                />
+            );
+        }
 
         return (
             <UnstyledButton
-                onClick={() => !isEditing && startEditing(mode)}
-                style={{
-                    width: '100%',
-                    cursor: disabled ? 'default' : 'pointer',
-                    opacity: disabled ? 0.5 : 1
-                }}
+                onClick={() => startEditing(mode)}
+                style={{ cursor: disabled ? 'default' : 'pointer' }}
             >
-                <Group gap="xs" wrap="nowrap">
-                    <Text
-                        size={isActive ? 'xs' : 'xs'}
-                        c="dimmed"
-                        w={30}
-                        style={{ flexShrink: 0 }}
-                    >
-                        {label}
-                    </Text>
-
-                    {isEditing && isActive ? (
-                        <input
-                            ref={inputRef}
-                            value={editValue}
-                            onChange={(e) => setEditValue(e.target.value)}
-                            onBlur={finishEditing}
-                            onKeyDown={handleKeyDown}
-                            style={{
-                                fontFamily: 'monospace',
-                                fontSize: '16px',
-                                fontWeight: 600,
-                                border: '1px solid var(--mantine-color-blue-5)',
-                                borderRadius: '4px',
-                                padding: '2px 6px',
-                                background: 'var(--mantine-color-dark-6)',
-                                color: 'inherit',
-                                outline: 'none',
-                                width: '100%',
-                                letterSpacing: mode === 'bin' ? '1px' : 'normal'
-                            }}
-                        />
-                    ) : (
-                        <Text
-                            size={isActive ? 'md' : 'sm'}
-                            fw={isActive ? 700 : 400}
-                            c={isActive ? undefined : 'dimmed'}
-                            ff="monospace"
-                            style={{
-                                letterSpacing: mode === 'bin' ? '2px' : 'normal',
-                                transition: 'all 0.15s ease'
-                            }}
-                        >
-                            {displayValue}
-                        </Text>
-                    )}
-                </Group>
+                <Text
+                    size="xs"
+                    ff="monospace"
+                    fw={activeMode === mode ? 600 : 400}
+                    c={activeMode === mode ? undefined : 'dimmed'}
+                    style={{ letterSpacing: mode === 'bin' ? '1px' : 'normal' }}
+                >
+                    {displayValue}
+                </Text>
             </UnstyledButton>
         );
     };
 
     return (
-        <Box
+        <Group
             ref={containerRef}
             onWheel={handleWheel}
             onKeyDown={!isEditing ? handleKeyDown : undefined}
             tabIndex={0}
+            gap={4}
+            wrap="nowrap"
             style={{
                 outline: 'none',
-                border: '1px solid var(--mantine-color-dark-4)',
-                borderRadius: '6px',
-                padding: '6px 8px',
-                background: 'var(--mantine-color-dark-7)',
-                cursor: disabled ? 'default' : 'pointer'
+                cursor: disabled ? 'default' : 'pointer',
+                opacity: disabled ? 0.5 : 1
             }}
         >
-            <Group gap="xs" wrap="nowrap" align="center">
-                <Stack gap={2} style={{ flex: 1 }}>
-                    {renderModeRow('dec', 'Dec')}
-                    {renderModeRow('hex', 'Hex')}
-                    {renderModeRow('bin', 'Bin')}
-                </Stack>
+            {/* Dec */}
+            <Text size="xs" c="dimmed" w={24}>Dec</Text>
+            {renderMode('dec')}
 
-                {!disabled && (
-                    <Stack gap={0}>
-                        <ActionIcon
-                            size="xs"
-                            variant="subtle"
-                            onClick={increment}
-                            disabled={value >= maxValue}
-                        >
-                            <IconChevronUp size={14} />
-                        </ActionIcon>
-                        <ActionIcon
-                            size="xs"
-                            variant="subtle"
-                            onClick={decrement}
-                            disabled={value <= 0}
-                        >
-                            <IconChevronDown size={14} />
-                        </ActionIcon>
-                    </Stack>
-                )}
-            </Group>
+            {/* Hex */}
+            <Text size="xs" c="dimmed" w={24} ml={8}>Hex</Text>
+            {renderMode('hex')}
 
-            <Text size="xs" c="dimmed" ta="right" mt={2}>
-                {bitLength} bits (0-{maxValue})
+            {/* Bin */}
+            <Text size="xs" c="dimmed" w={22} ml={8}>Bin</Text>
+            {renderMode('bin')}
+
+            {/* Buttons */}
+            {!disabled && (
+                <Group gap={0} ml={4}>
+                    <ActionIcon
+                        size="xs"
+                        variant="subtle"
+                        onClick={increment}
+                        disabled={value >= maxValue}
+                    >
+                        <IconChevronUp size={12} />
+                    </ActionIcon>
+                    <ActionIcon
+                        size="xs"
+                        variant="subtle"
+                        onClick={decrement}
+                        disabled={value <= 0}
+                    >
+                        <IconChevronDown size={12} />
+                    </ActionIcon>
+                </Group>
+            )}
+
+            {/* Bit info */}
+            <Text size="xs" c="dimmed" ml={4}>
+                {bitLength}b
             </Text>
-        </Box>
+        </Group>
     );
 };

@@ -389,12 +389,22 @@ function NodeRenderer({ node, value, onChange, level, path, label, isOptionalGho
         // For OctetString: read-only byte length
         // For BitString: editable bit length
         const cleanHex = hexVal.replace(/^0x/i, '');
-        const displayedLen = isOctetString
-            ? Math.ceil(cleanHex.length / 2) // Bytes (ceil for safety on partials)
-            : (isTuple ? value[1] : (cleanHex.length * 4)); // Bits
 
-        // For small BIT STRING fields (≤32 bits), use the roller input
-        const bitLength = node.constraints?.size || displayedLen;
+        // Get bit length from constraints or tuple
+        const constraints = node.constraints || {};
+        const constraintSize = constraints.size || constraints.max_size || constraints.min_size;
+        const tupleLen = isTuple ? value[1] : null;
+
+        // For BIT STRING, prioritize: constraint > tuple > calculated from hex
+        const bitLength = !isOctetString
+            ? (typeof constraintSize === 'number' ? constraintSize : (tupleLen || Math.max(cleanHex.length * 4, 1)))
+            : Math.ceil(cleanHex.length / 2) * 8;
+
+        const displayedLen = isOctetString
+            ? Math.ceil(cleanHex.length / 2)
+            : bitLength;
+
+        // For small BIT STRING fields (≤32 bits), use the compact roller input
         const useRollerInput = !isOctetString && typeof bitLength === 'number' && bitLength > 0 && bitLength <= 32;
 
         if (useRollerInput) {
