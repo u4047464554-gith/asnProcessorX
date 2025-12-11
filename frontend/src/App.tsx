@@ -40,6 +40,13 @@ import { MscEditor } from './pages/MscEditor'
 import { useSession } from './hooks/useSession'
 import { IconPlus } from '@tabler/icons-react'
 
+// Extract the path from an error message (format: "Path.To.Field: Error message")
+const extractErrorPath = (error: string | null): string | undefined => {
+    if (!error) return undefined;
+    const match = error.match(/^([^:]+):/);
+    return match ? match[1].trim() : undefined;
+};
+
 function AsnProcessor() {
     // Business Logic & State
     const {
@@ -408,6 +415,7 @@ function AsnProcessor() {
                                                             setJsonData(JSON.stringify(newData, null, 2));
                                                             setLastEdited('json');
                                                         }}
+                                                        errorPath={extractErrorPath(error)}
                                                     />
                                                 </ScrollArea.Autosize>
                                             </Paper>

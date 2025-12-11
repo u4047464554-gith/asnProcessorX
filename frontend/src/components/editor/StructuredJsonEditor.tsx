@@ -15,6 +15,7 @@ interface StructuredJsonEditorProps {
     schema: DefinitionNode | null;
     onChange: (newData: any) => void;
     onFieldFocus?: (fieldName: string) => void;
+    errorPath?: string; // Path to highlight (e.g., "RACH-ConfigCommon.totalNumberOfRA-Preambles")
 }
 
 // Cache for last used values (primitive fields)
@@ -102,15 +103,15 @@ const getKind = (node: DefinitionNode): string => {
     return node.type;
 };
 
-const NodeLabel = ({ fieldName, node, onChange }: { fieldName: string, node: DefinitionNode, onChange: (val: any) => void }) => (
-    <Group gap="xs" mb={2} style={{ minWidth: 150 }}>
-        <Text size="sm">{fieldName}</Text>
-        <Text size="xs" c="dimmed">({node.type})</Text>
+const NodeLabel = ({ fieldName, node, onChange, hasError }: { fieldName: string, node: DefinitionNode, onChange: (val: any) => void, hasError?: boolean }) => (
+    <Group gap="xs" mb={2} style={{ minWidth: 150, ...(hasError ? { backgroundColor: 'var(--mantine-color-red-1)', borderRadius: 4, padding: '2px 6px', marginLeft: -6 } : {}) }}>
+        <Text size="sm" c={hasError ? 'red.7' : undefined} fw={hasError ? 600 : undefined}>{fieldName}</Text>
+        <Text size="xs" c={hasError ? 'red.5' : 'dimmed'}>({node.type})</Text>
         {node.optional && <ActionIcon size="xs" color="red" variant="subtle" onClick={() => onChange(undefined)} aria-label="Remove field"><IconTrash size="0.7rem" /></ActionIcon>}
     </Group>
 );
 
-export function StructuredJsonEditor({ data, schema, onChange, onFieldFocus }: StructuredJsonEditorProps) {
+export function StructuredJsonEditor({ data, schema, onChange, onFieldFocus, errorPath }: StructuredJsonEditorProps) {
     if (!schema) return <Text c="dimmed">No schema definition available</Text>;
 
     return (
@@ -122,6 +123,7 @@ export function StructuredJsonEditor({ data, schema, onChange, onFieldFocus }: S
                 level={0}
                 path=""
                 onFieldFocus={onFieldFocus}
+                errorPath={errorPath}
             />
         </Box>
     );
@@ -136,14 +138,25 @@ interface NodeRendererProps {
     label?: string; // Override name (e.g. for SEQUENCE OF items)
     isOptionalGhost?: boolean; // If true, render as "addable" ghost
     onFieldFocus?: (fieldName: string) => void;
+    errorPath?: string; // Path to highlight for errors
 }
 
-function NodeRenderer({ node, value, onChange, level, path, label, isOptionalGhost, onFieldFocus }: NodeRendererProps) {
+function NodeRenderer({ node, value, onChange, level, path, label, isOptionalGhost, onFieldFocus, errorPath }: NodeRendererProps) {
     const [expanded, setExpanded] = useState(true);
 
     // Determine name to display
     const fieldName = label || node.name || '<anonymous>';
+
+    // Check if this node is in the error path
+    const currentPath = path ? `${path}.${fieldName}` : fieldName;
+    const hasErrorInSubtree = errorPath && (errorPath === currentPath || errorPath.startsWith(currentPath + '.'));
+    const isExactError = errorPath === currentPath;
     const kind = getKind(node);
+
+    // Auto-expand if there's an error in the subtree
+    if (hasErrorInSubtree && !expanded) {
+        setExpanded(true);
+    }
 
     // Generate a default value recursively for a node
     const createDefault = (n: DefinitionNode, useCache = false): any => {
@@ -290,6 +303,7 @@ function NodeRenderer({ node, value, onChange, level, path, label, isOptionalGho
                                         path={`${path}.${childKey}`}
                                         isOptionalGhost={isGhost}
                                         onFieldFocus={onFieldFocus}
+                                        errorPath={errorPath}
                                     />
                                 );
                             })}
@@ -350,6 +364,7 @@ function NodeRenderer({ node, value, onChange, level, path, label, isOptionalGho
                                             path={`${path}[${idx}]`}
                                             label={`Item ${idx + 1}`}
                                             onFieldFocus={onFieldFocus}
+                                            errorPath={errorPath}
                                         />
                                     ) : <Text size="xs" c="red">Unknown Item Type</Text>}
                                 </Box>
@@ -414,6 +429,7 @@ function NodeRenderer({ node, value, onChange, level, path, label, isOptionalGho
                             path={`${path}.${currentKey}`}
                             label="" // Hide label since key is selected above
                             onFieldFocus={onFieldFocus}
+                            errorPath={errorPath}
                         />
                     </Box>
                 )}
@@ -461,7 +477,7 @@ function NodeRenderer({ node, value, onChange, level, path, label, isOptionalGho
 
             return (
                 <Box ml={level * 16} mb={4}>
-                    <NodeLabel fieldName={fieldName} node={node} onChange={onChange} />
+                    <NodeLabel fieldName={fieldName} node={node} onChange={onChange} hasError={isExactError} />
                     <BitValueInput
                         value={numValue}
                         bitLength={bitLength}
@@ -478,7 +494,7 @@ function NodeRenderer({ node, value, onChange, level, path, label, isOptionalGho
 
         return (
             <Box ml={level * 16} mb={4}>
-                <NodeLabel fieldName={fieldName} node={node} onChange={onChange} />
+                <NodeLabel fieldName={fieldName} node={node} onChange={onChange} hasError={isExactError} />
                 <Group gap="xs" align="flex-end">
                     <LongTextRenderer
                         label="Hex Value"
@@ -523,7 +539,7 @@ function NodeRenderer({ node, value, onChange, level, path, label, isOptionalGho
     if (kind === 'INTEGER') {
         return (
             <Box ml={level * 16} mb={4}>
-                <NodeLabel fieldName={fieldName} node={node} onChange={onChange} />
+                <NodeLabel fieldName={fieldName} node={node} onChange={onChange} hasError={isExactError} />
                 <NumberInput
                     size="xs"
                     value={Number(value) || 0}
@@ -537,7 +553,7 @@ function NodeRenderer({ node, value, onChange, level, path, label, isOptionalGho
     if (kind === 'BOOLEAN') {
         return (
             <Box ml={level * 16} mb={4}>
-                <NodeLabel fieldName={fieldName} node={node} onChange={onChange} />
+                <NodeLabel fieldName={fieldName} node={node} onChange={onChange} hasError={isExactError} />
                 <Select
                     size="xs"
                     data={['true', 'false']}
@@ -555,7 +571,7 @@ function NodeRenderer({ node, value, onChange, level, path, label, isOptionalGho
 
         return (
             <Box ml={level * 16} mb={4}>
-                <NodeLabel fieldName={fieldName} node={node} onChange={onChange} />
+                <NodeLabel fieldName={fieldName} node={node} onChange={onChange} hasError={isExactError} />
                 {choices.length > 0 ? (
                     <Select
                         size="xs"
@@ -581,7 +597,7 @@ function NodeRenderer({ node, value, onChange, level, path, label, isOptionalGho
     if (kind === 'NULL') {
         return (
             <Box ml={level * 16} mb={4}>
-                <NodeLabel fieldName={fieldName} node={node} onChange={onChange} />
+                <NodeLabel fieldName={fieldName} node={node} onChange={onChange} hasError={isExactError} />
                 <Badge size="xs" variant="light" color="gray">NULL</Badge>
             </Box>
         );
@@ -590,7 +606,7 @@ function NodeRenderer({ node, value, onChange, level, path, label, isOptionalGho
     // Default fallback
     return (
         <Box ml={level * 16} mb={4}>
-            <NodeLabel fieldName={fieldName} node={node} onChange={onChange} />
+            <NodeLabel fieldName={fieldName} node={node} onChange={onChange} hasError={isExactError} />
             <LongTextRenderer
                 value={typeof value === 'string' ? value : JSON.stringify(value)}
                 onChange={(val: string) => handlePrimitiveChange(val)}
