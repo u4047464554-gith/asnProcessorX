@@ -43,7 +43,7 @@ import { IconPlus } from '@tabler/icons-react'
 function AsnProcessor() {
     // Business Logic & State
     const {
-        protocols, selectedProtocol, handleProtocolChange,
+        protocolsWithMeta, selectedProtocol, handleProtocolChange,
         demoTypeOptions, selectedDemoOption, handleDemoSelect,
         selectedType,
         definitionTree,
@@ -249,7 +249,11 @@ function AsnProcessor() {
                         <Select
                             label="Protocol"
                             placeholder="Select Protocol"
-                            data={protocols}
+                            data={protocolsWithMeta.map(p => ({
+                                value: p.name,
+                                label: p.error ? `⚠️ ${p.name}` : p.name,
+                                disabled: !!p.error
+                            }))}
                             value={selectedProtocol}
                             onChange={handleProtocolChange}
                             searchable

@@ -11,10 +11,12 @@ import type { DemoEntry } from '../data/demos';
 import { demoPayloads, demoErrorPayloads } from '../data/demos';
 import { useSession } from './useSession';
 
+export type ProtocolInfo = { name: string; error?: string | null; is_bundled?: boolean };
 export type DemoOption = ComboboxItem | ComboboxItemGroup;
 
 export const useAsnProcessor = () => {
     const [protocols, setProtocols] = useState<string[]>([]);
+    const [protocolsWithMeta, setProtocolsWithMeta] = useState<ProtocolInfo[]>([]);
     const [savedMessages, setSavedMessages] = useState<string[]>([]);
     const [selectedProtocol, setSelectedProtocol] = useState<string | null>(null);
     const [demoTypeOptions, setDemoTypeOptions] = useState<DemoOption[]>([]);
@@ -54,12 +56,16 @@ export const useAsnProcessor = () => {
     }, []);
 
     useEffect(() => {
-        AsnService.getProtocols()
-            .then(setProtocols)
+        AsnService.getProtocolsWithMetadata()
+            .then((meta) => {
+                setProtocolsWithMeta(meta);
+                setProtocols(meta.map(p => p.name));
+            })
             .catch((err) => {
                 console.error('Failed to load protocols:', err);
                 setError(`Failed to load protocols: ${err.message || 'Backend not available. Is the server running on http://localhost:8010?'}`);
                 setProtocols([]);
+                setProtocolsWithMeta([]);
             });
     }, []);
 
@@ -386,7 +392,7 @@ export const useAsnProcessor = () => {
     };
 
     return {
-        protocols, selectedProtocol, setSelectedProtocol, handleProtocolChange,
+        protocols, protocolsWithMeta, selectedProtocol, setSelectedProtocol, handleProtocolChange,
         demoTypeOptions, selectedDemoOption, handleDemoSelect,
         selectedType, setSelectedType,
         definitionTree,
