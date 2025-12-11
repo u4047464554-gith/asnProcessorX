@@ -8,6 +8,7 @@ import {
     IconPlus, IconTrash, IconChevronRight, IconChevronDown
 } from '@tabler/icons-react';
 import type { DefinitionNode } from '../definition/types';
+import { BitValueInput } from './BitValueInput';
 
 interface StructuredJsonEditorProps {
     data: any;
@@ -391,6 +392,31 @@ function NodeRenderer({ node, value, onChange, level, path, label, isOptionalGho
         const displayedLen = isOctetString
             ? Math.ceil(cleanHex.length / 2) // Bytes (ceil for safety on partials)
             : (isTuple ? value[1] : (cleanHex.length * 4)); // Bits
+
+        // For small BIT STRING fields (≤32 bits), use the roller input
+        const bitLength = node.constraints?.size || displayedLen;
+        const useRollerInput = !isOctetString && typeof bitLength === 'number' && bitLength > 0 && bitLength <= 32;
+
+        if (useRollerInput) {
+            // Convert hex to number value
+            const numValue = cleanHex ? parseInt(cleanHex, 16) : 0;
+
+            return (
+                <Box ml={level * 16} mb={4}>
+                    <NodeLabel fieldName={fieldName} node={node} onChange={onChange} />
+                    <BitValueInput
+                        value={numValue}
+                        bitLength={bitLength}
+                        onChange={(newNum: number) => {
+                            // Convert number back to hex
+                            const hexDigits = Math.ceil(bitLength / 4);
+                            const newHex = newNum.toString(16).toUpperCase().padStart(hexDigits, '0');
+                            handlePrimitiveChange([newHex, bitLength]);
+                        }}
+                    />
+                </Box>
+            );
+        }
 
         return (
             <Box ml={level * 16} mb={4}>
