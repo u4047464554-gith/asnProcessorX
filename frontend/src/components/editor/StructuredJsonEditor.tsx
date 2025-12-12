@@ -99,15 +99,41 @@ const getKind = (node: DefinitionNode): string => {
         if (k === 'ObjectIdentifier') return 'OBJECT IDENTIFIER';
         if (k === 'Null') return 'NULL';
         if (k === 'Recursive') return 'SEQUENCE'; // Handle recursive types as sequence/struct usually
+        // Log unrecognized kind for debugging
+        console.warn('[StructuredJsonEditor] Unrecognized node.kind:', k, 'for node:', node.name, '- falling back to node.type:', node.type);
+    }
+    // Log when we fall back to node.type (no kind specified)
+    if (!node.kind && node.type) {
+        console.debug('[StructuredJsonEditor] Node has no kind, using type:', node.type, 'name:', node.name);
     }
     return node.type;
+};
+
+// Reusable component for optional field delete button - ensures consistency
+const OptionalFieldDeleteButton = ({ node, onChange }: { node: DefinitionNode, onChange: (val: any) => void }) => {
+    if (!node.optional) return null;
+    return (
+        <>
+            <Badge size="xs" variant="outline" color="gray">OPTIONAL</Badge>
+            <ActionIcon
+                size="xs"
+                color="red"
+                variant="subtle"
+                onClick={(e) => { e.stopPropagation(); onChange(undefined); }}
+                aria-label="Remove field"
+                title="Remove this optional field"
+            >
+                <IconTrash size="0.7rem" />
+            </ActionIcon>
+        </>
+    );
 };
 
 const NodeLabel = ({ fieldName, node, onChange, hasError }: { fieldName: string, node: DefinitionNode, onChange: (val: any) => void, hasError?: boolean }) => (
     <Group gap="xs" mb={2} style={{ minWidth: 150, ...(hasError ? { backgroundColor: 'var(--mantine-color-red-1)', borderRadius: 4, padding: '2px 6px', marginLeft: -6 } : {}) }}>
         <Text size="sm" c={hasError ? 'red.7' : undefined} fw={hasError ? 600 : undefined}>{fieldName}</Text>
         <Text size="xs" c={hasError ? 'red.5' : 'dimmed'}>({node.type})</Text>
-        {node.optional && <ActionIcon size="xs" color="red" variant="subtle" onClick={() => onChange(undefined)} aria-label="Remove field"><IconTrash size="0.7rem" /></ActionIcon>}
+        <OptionalFieldDeleteButton node={node} onChange={onChange} />
     </Group>
 );
 
@@ -152,6 +178,20 @@ function NodeRenderer({ node, value, onChange, level, path, label, isOptionalGho
     const hasErrorInSubtree = errorPath && (errorPath === currentPath || errorPath.startsWith(currentPath + '.'));
     const isExactError = errorPath === currentPath;
     const kind = getKind(node);
+
+    // Debug logging for tracking rendering issues (only in development)
+    if (import.meta.env.DEV) {
+        console.debug('[NodeRenderer]', {
+            name: node.name,
+            type: node.type,
+            kind,
+            optional: node.optional,
+            isOptionalGhost,
+            hasValue: value !== undefined && value !== null,
+            path: currentPath,
+            level
+        });
+    }
 
     // Auto-expand if there's an error in the subtree
     if (hasErrorInSubtree && !expanded) {
@@ -275,20 +315,30 @@ function NodeRenderer({ node, value, onChange, level, path, label, isOptionalGho
             setExpanded(!expanded);
         };
 
+        // If embedded inside CHOICE (label=""), skip the header and just render children
+        const showHeader = fieldName !== '';
+
         return (
             <Box ml={level * 16}>
-                <Group
-                    mb={4}
-                    onClick={handleToggle}
-                    style={{ cursor: 'pointer', userSelect: 'none' }}
-                    gap="xs"
-                >
-                    <ThemeIcon variant="transparent" size="xs" c="dimmed" style={{ pointerEvents: 'none' }}>
-                        {expanded ? <IconChevronDown /> : <IconChevronRight />}
-                    </ThemeIcon>
-                    <Text fw={500} size="sm" style={{ pointerEvents: 'none' }}>{fieldName}</Text>
-                    {node.type !== 'SEQUENCE' && <Text size="xs" c="dimmed" style={{ pointerEvents: 'none' }}>({node.type})</Text>}
-                </Group>
+                {showHeader && (
+                    <Group
+                        mb={4}
+                        onClick={handleToggle}
+                        style={{ cursor: 'pointer', userSelect: 'none' }}
+                        gap="xs"
+                    >
+                        <ThemeIcon variant="transparent" size="xs" c="dimmed" style={{ pointerEvents: 'none' }}>
+                            {expanded ? <IconChevronDown /> : <IconChevronRight />}
+                        </ThemeIcon>
+                        <Text fw={500} size="sm" style={{ pointerEvents: 'none' }}>{fieldName}</Text>
+                        {node.type !== 'SEQUENCE' && <Text size="xs" c="dimmed" style={{ pointerEvents: 'none' }}>({node.type})</Text>}
+                        {node.optional && (
+                            <Box style={{ pointerEvents: 'auto' }}>
+                                <OptionalFieldDeleteButton node={node} onChange={onChange} />
+                            </Box>
+                        )}
+                    </Group>
+                )}
 
                 <Collapse in={expanded}>
                     {isEmpty ? (
@@ -349,14 +399,19 @@ function NodeRenderer({ node, value, onChange, level, path, label, isOptionalGho
             onChange(newArr);
         };
 
+        // If embedded inside CHOICE (label=""), use a simplified header
+        const showHeader = fieldName !== '';
+
         return (
             <Box ml={level * 16}>
                 <Group mb={4}>
                     <ThemeIcon variant="transparent" size="xs" c="dimmed" onClick={() => setExpanded(!expanded)} style={{ cursor: 'pointer' }}>
                         {expanded ? <IconChevronDown /> : <IconChevronRight />}
                     </ThemeIcon>
-                    <Text fw={500} size="sm">{fieldName}</Text>
+                    {showHeader && <Text fw={500} size="sm">{fieldName}</Text>}
+                    {showHeader && node.type !== 'SEQUENCE OF' && <Text size="xs" c="dimmed">({node.type})</Text>}
                     <Text size="xs" c="dimmed">[{arrValue.length}]</Text>
+                    <OptionalFieldDeleteButton node={node} onChange={onChange} />
                     <ActionIcon size="xs" variant="subtle" onClick={handleAdd} aria-label="Add item"><IconPlus size="0.8rem" /></ActionIcon>
                 </Group>
                 <Collapse in={expanded}>
@@ -403,9 +458,10 @@ function NodeRenderer({ node, value, onChange, level, path, label, isOptionalGho
 
         const handleChoiceChange = (newKey: string) => {
             if (newKey === currentKey) return;
-            // Reset value to default for new type
-            // For now just empty object or null
-            onChange({ [newKey]: null }); // Inner renderer will initialize default
+            // Find the child schema and initialize with proper default
+            const newChild = options.find(c => c.name === newKey);
+            const initialValue = newChild ? createDefault(newChild, true) : null;
+            onChange({ [newKey]: initialValue });
         };
 
         const handleInnerChange = (val: any) => {
@@ -418,6 +474,8 @@ function NodeRenderer({ node, value, onChange, level, path, label, isOptionalGho
             <Box ml={level * 16}>
                 <Group mb={4} gap="xs">
                     <Text fw={500} size="sm">{fieldName}</Text>
+                    {node.type !== 'CHOICE' && <Text size="xs" c="dimmed">({node.type})</Text>}
+                    <OptionalFieldDeleteButton node={node} onChange={onChange} />
                     <Select
                         size="xs"
                         data={options.map(c => ({ value: c.name || '', label: c.name || '' }))}
@@ -618,7 +676,15 @@ function NodeRenderer({ node, value, onChange, level, path, label, isOptionalGho
         );
     }
 
-    // Default fallback
+    // Default fallback - log warning for debugging
+    console.warn('[StructuredJsonEditor] Using fallback renderer for unhandled type:', {
+        name: node.name,
+        type: node.type,
+        kind,
+        optional: node.optional,
+        path: currentPath
+    });
+
     return (
         <Box ml={level * 16} mb={4}>
             <NodeLabel fieldName={fieldName} node={node} onChange={onChange} hasError={isExactError} />
