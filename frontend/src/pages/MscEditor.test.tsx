@@ -39,7 +39,7 @@ vi.mock('../hooks/useSession', () => ({
     deleteSession: vi.fn(),
     refreshSessions: vi.fn(),
   })),
-  SessionProvider: ({ children }: any) => <>{children}</>,
+  SessionProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual('react-router-dom');

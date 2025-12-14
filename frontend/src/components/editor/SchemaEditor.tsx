@@ -7,7 +7,9 @@ import { IconDeviceFloppy, IconPlus, IconRefresh, IconFileCode, IconCamera, Icon
 import axios from 'axios';
 import { AsnService } from '../../services/asnService';
 import Editor, { type Monaco } from '@monaco-editor/react';
+import type { editor } from 'monaco-editor';
 import { IssueReporter } from '../IssueReporter';
+import { formatErrorMessage, logError } from '../../utils/error';
 
 interface SchemaEditorProps {
     protocol: string;
@@ -72,7 +74,7 @@ export function SchemaEditor({ protocol, onSchemaUpdated }: SchemaEditorProps) {
     const [newFileName, setNewFileName] = useState('');
     const [isBundled, setIsBundled] = useState(false);
 
-    const editorRef = useRef<any>(null);
+    const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
     const monacoRef = useRef<Monaco | null>(null);
 
     const fetchFiles = async () => {
@@ -99,9 +101,9 @@ export function SchemaEditor({ protocol, onSchemaUpdated }: SchemaEditorProps) {
             } else if (fileList.length === 0) {
                 setError('No schema files found. Click "New File" to create one.');
             }
-        } catch (err: any) {
-            console.error("Failed to load files", err);
-            const errorMsg = err.response?.data?.detail || err.message || 'Unknown error';
+        } catch (err: unknown) {
+            logError('SchemaEditor.fetchFiles', err);
+            const errorMsg = formatErrorMessage(err);
             setError(`Error loading files: ${errorMsg}`);
             setFiles([]); // Set to empty array on error
         }
@@ -176,8 +178,9 @@ export function SchemaEditor({ protocol, onSchemaUpdated }: SchemaEditorProps) {
             });
             await fetchFiles();
             alert(`Snapshot saved as ${snapName}`);
-        } catch (err: any) {
-            alert("Failed to save snapshot: " + (err.response?.data?.detail || err.message));
+        } catch (err: unknown) {
+            logError('SchemaEditor.handleSnapshot', err);
+            alert("Failed to save snapshot: " + formatErrorMessage(err));
         }
     }
 
@@ -186,6 +189,7 @@ export function SchemaEditor({ protocol, onSchemaUpdated }: SchemaEditorProps) {
         if (!editor) return;
 
         const selection = editor.getSelection();
+        if (!selection) return;
         const op = { range: selection, text: snippet, forceMoveMarkers: true };
         editor.executeEdits("my-source", [op]);
         editor.focus();
@@ -207,14 +211,15 @@ export function SchemaEditor({ protocol, onSchemaUpdated }: SchemaEditorProps) {
             await fetchFiles();
             setSelectedFile(filename);
             setCreateFileOpen(false);
-        } catch (err: any) {
-            alert("Failed to create file: " + (err.response?.data?.detail || err.message));
+        } catch (err: unknown) {
+            logError('SchemaEditor.handleCreateFileConfirm', err);
+            alert("Failed to create file: " + formatErrorMessage(err));
         }
     }
 
-    const validateContent = (model: any, monaco: Monaco) => {
+    const validateContent = (model: editor.ITextModel, monaco: Monaco) => {
         const text = model.getValue();
-        const markers: any[] = [];
+        const markers: editor.IMarkerData[] = [];
 
         const regex = /FROM\s+([A-Za-z0-9-]+)/g;
         let match;
@@ -245,11 +250,11 @@ export function SchemaEditor({ protocol, onSchemaUpdated }: SchemaEditorProps) {
         monaco.editor.setModelMarkers(model, 'owner', markers);
     }
 
-    const handleEditorDidMount = (editor: any, monaco: Monaco) => {
-        editorRef.current = editor;
+    const handleEditorDidMount = (editorInstance: editor.IStandaloneCodeEditor, monaco: Monaco) => {
+        editorRef.current = editorInstance;
         monacoRef.current = monaco;
 
-        if (!monaco.languages.getLanguages().some((l: any) => l.id === 'asn1')) {
+        if (!monaco.languages.getLanguages().some((l: { id: string }) => l.id === 'asn1')) {
             monaco.languages.register({ id: 'asn1' });
             monaco.languages.setMonarchTokensProvider('asn1', {
                 tokenizer: {
@@ -267,11 +272,13 @@ export function SchemaEditor({ protocol, onSchemaUpdated }: SchemaEditorProps) {
             });
         }
 
-        editor.onDidChangeModelContent(() => {
-            validateContent(editor.getModel(), monaco);
+        editorInstance.onDidChangeModelContent(() => {
+            const model = editorInstance.getModel();
+            if (model) validateContent(model, monaco);
         });
 
-        validateContent(editor.getModel(), monaco);
+        const model = editorInstance.getModel();
+        if (model) validateContent(model, monaco);
     };
 
     return (

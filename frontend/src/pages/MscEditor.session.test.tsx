@@ -41,7 +41,7 @@ vi.mock('../hooks/useSession', () => ({
     deleteSession: vi.fn().mockResolvedValue(true),
     refreshSessions: vi.fn(),
   })),
-  SessionProvider: ({ children }: any) => <>{children}</>,
+  SessionProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
 // Mock fetch for protocol types

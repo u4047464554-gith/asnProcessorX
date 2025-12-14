@@ -41,7 +41,7 @@ vi.mock('../hooks/useSession', () => ({
         deleteSession: vi.fn(),
         refreshSessions: vi.fn()
     }),
-    SessionProvider: ({ children }: any) => <>{children}</>,
+    SessionProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
 global.fetch = vi.fn();

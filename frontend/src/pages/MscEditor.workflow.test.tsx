@@ -12,7 +12,7 @@ import type { MscSequence } from '../domain/msc/types';
 vi.mock('../hooks/useMscEditor');
 vi.mock('../hooks/useSession', () => ({
   useSession: vi.fn(),
-  SessionProvider: ({ children }: any) => <>{children}</>,
+  SessionProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 vi.mock('../services/mscSessionService', () => ({
   default: {

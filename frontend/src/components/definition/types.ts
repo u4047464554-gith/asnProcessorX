@@ -1,3 +1,5 @@
+import type { AsnValue } from '../../types/asn';
+
 export interface DefinitionNode {
   name?: string | null
   type: string
@@ -6,5 +8,5 @@ export interface DefinitionNode {
   children?: DefinitionNode[]
   note?: string
   optional?: boolean
-  default?: any
+  default?: AsnValue
 }

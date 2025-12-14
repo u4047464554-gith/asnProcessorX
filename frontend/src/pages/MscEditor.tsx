@@ -344,10 +344,10 @@ export const MscEditor: React.FC<MscEditorProps> = ({ initialProtocol }) => {
           upToSelected.forEach((msg) => {
             if (msg.data) {
               const fieldPath = configName.split('.');
-              let value = msg.data;
+              let value: unknown = msg.data;
               for (const part of fieldPath) {
-                if (value && typeof value === 'object') {
-                  value = value[part];
+                if (value && typeof value === 'object' && !Array.isArray(value)) {
+                  value = (value as Record<string, unknown>)[part];
                 } else {
                   value = undefined;
                   break;

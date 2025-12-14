@@ -592,8 +592,12 @@ export const useMscEditor = (): UseMscEditorReturn => {
     }
 
     const currentMessage = state.currentSequence.messages[state.selectedMessageIndex];
+    // Message data is always an object (SEQUENCE), so we can safely spread it
+    const currentData = (typeof currentMessage.data === 'object' && currentMessage.data !== null && !Array.isArray(currentMessage.data))
+      ? currentMessage.data as Record<string, unknown>
+      : {};
     const updatedData = {
-      ...currentMessage.data,
+      ...currentData,
       [suggestion.identifier]: suggestion.value
     };
 

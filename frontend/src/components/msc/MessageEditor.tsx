@@ -27,6 +27,7 @@ import {
 } from '@tabler/icons-react';
 import { StructuredJsonEditor } from '../editor/StructuredJsonEditor';
 import type { MscMessage, ValidationResult, IdentifierSuggestion } from '../../domain/msc/types';
+import { formatAsnValue } from '../../types/asn';
 import { useMscEditor } from '../../hooks/useMscEditor';
 
 interface MessageEditorProps {
@@ -554,7 +555,7 @@ export const MessageEditor: React.FC<MessageEditorProps> = ({
                     backgroundColor: suggestion.confidence > 0.8 ? '#f0fdf4' : '#fef3c7'
                   }} onClick={() => handleSuggestionSelect(suggestion)}>
                     <Text size="sm" fw={500} c={suggestion.confidence > 0.8 ? 'green' : 'orange'}>
-                      {suggestion.value}
+                      {formatAsnValue(suggestion.value)}
                     </Text>
                     <Text size="xs" c="dimmed">
                       (from message {suggestion.source_message_index}, confidence: {Math.round(suggestion.confidence * 100)}%)

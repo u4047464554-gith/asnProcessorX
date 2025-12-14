@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useDebouncedValue } from '@mantine/hooks';
 import type { ComboboxItem, ComboboxItemGroup } from '@mantine/core';
 import { AsnService } from '../services/asnService';
-import { formatErrorMessage } from '../utils/error';
+import { formatErrorMessage, logError } from '../utils/error';
 import { hexTo0xHex } from '../utils/conversion';
 import { downloadBlob } from '../utils/file';
 import type { DefinitionNode } from '../components/definition/types';
@@ -157,7 +157,8 @@ export const useAsnProcessor = () => {
             } else {
                 setTraceData(res);
             }
-        } catch (err: any) {
+        } catch (err: unknown) {
+            logError('fetchTrace', err);
             setTraceError(formatErrorMessage(err));
             setTraceData(null);
         } finally {
@@ -308,7 +309,8 @@ export const useAsnProcessor = () => {
             await AsnService.saveMessage(filename, selectedProtocol, selectedType, parsed, currentSessionId);
             refreshSavedMessages();
             return true;
-        } catch (e: any) {
+        } catch (e: unknown) {
+            logError('handleSaveMessage', e);
             setError(formatErrorMessage(e));
             return false;
         }
@@ -322,7 +324,8 @@ export const useAsnProcessor = () => {
                 setSelectedDemoOption(null);
                 setJsonData('');
             }
-        } catch (e: any) {
+        } catch (e: unknown) {
+            logError('handleDeleteMessage', e);
             setError(formatErrorMessage(e));
         }
     };
@@ -336,7 +339,8 @@ export const useAsnProcessor = () => {
                 setSelectedDemoOption(null);
                 setJsonData('');
             }
-        } catch (e: any) {
+        } catch (e: unknown) {
+            logError('handleClearMessages', e);
             setError(formatErrorMessage(e));
         }
     };
@@ -361,14 +365,20 @@ export const useAsnProcessor = () => {
             const blob = await AsnService.generateCStubs(selectedProtocol, selectedType ? [selectedType] : []);
             downloadBlob(blob, `${selectedProtocol}_c_stubs.zip`);
             return true;
-        } catch (err: any) {
-            if (err.response?.data instanceof Blob) {
-                const text = await err.response.data.text();
-                try {
-                    const json = JSON.parse(text);
-                    setCodegenError(json.detail || 'Generation failed');
-                } catch {
-                    setCodegenError(text);
+        } catch (err: unknown) {
+            logError('handleCodegen', err);
+            if (err && typeof err === 'object' && 'response' in err) {
+                const response = (err as { response?: { data?: Blob } }).response;
+                if (response?.data instanceof Blob) {
+                    const text = await response.data.text();
+                    try {
+                        const json = JSON.parse(text);
+                        setCodegenError(json.detail || 'Generation failed');
+                    } catch {
+                        setCodegenError(text);
+                    }
+                } else {
+                    setCodegenError(formatErrorMessage(err));
                 }
             } else {
                 setCodegenError(formatErrorMessage(err));
