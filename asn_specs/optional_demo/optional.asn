@@ -1,0 +1,55 @@
+-- Demo: Optional Fields and Parameterized Types
+-- This demonstrates the fixed issues with optional field handling
+
+OptionalDemo DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+
+    -- Common parameterized pattern from 3GPP: SetupRelease
+    SetupRelease { ElementType } ::= CHOICE {
+        release NULL,
+        setup ElementType
+    }
+
+    -- Simple configuration type
+    SomeConfig ::= SEQUENCE {
+        value1 INTEGER (0..100),
+        value2 BOOLEAN OPTIONAL,
+        description IA5String OPTIONAL
+    }
+
+    -- Message with optional parameterized CHOICE
+    -- This was the problematic case: optional + parameterized type
+    MessageWithOptionalConfig ::= SEQUENCE {
+        messageId INTEGER,
+        optionalConfig SetupRelease { SomeConfig } OPTIONAL,
+        anotherOptional INTEGER OPTIONAL
+    }
+
+    -- Deeply nested optional fields
+    DeeplyNested ::= SEQUENCE {
+        level1 SEQUENCE {
+            level2Optional SEQUENCE {
+                level3Value INTEGER,
+                level3Optional BOOLEAN OPTIONAL
+            } OPTIONAL,
+            level2Value IA5String
+        } OPTIONAL,
+        topValue INTEGER
+    }
+
+    -- Optional SEQUENCE OF
+    ListContainer ::= SEQUENCE {
+        items SEQUENCE OF SomeConfig OPTIONAL,
+        count INTEGER
+    }
+
+    -- Multiple optional CHOICEs
+    MultiChoice ::= SEQUENCE {
+        choice1 CHOICE {
+            optionA INTEGER,
+            optionB BOOLEAN
+        } OPTIONAL,
+        choice2 SetupRelease { INTEGER } OPTIONAL,
+        mandatory INTEGER
+    }
+
+END
