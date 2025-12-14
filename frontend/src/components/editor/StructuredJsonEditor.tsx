@@ -234,8 +234,9 @@ function NodeRenderer({ node, value, onChange, level, path, label, isOptionalGho
         if (k === 'OCTET STRING') {
             return ['', 0];
         }
-        // IA5String, UTF8String, etc.
-        if (k.includes('STRING')) return '';
+        // IA5String, UTF8String, PrintableString, VisibleString, etc.
+        // Use case-insensitive check since types may be 'IA5String', 'IA5STRING', etc.
+        if (k.toLowerCase().includes('string') && k !== 'BIT STRING' && k !== 'OCTET STRING') return '';
         if (k === 'ENUMERATED') {
             const choices = (n.constraints?.choices || []) as string[];
             return choices.length > 0 ? choices[0] : '';
@@ -254,7 +255,9 @@ function NodeRenderer({ node, value, onChange, level, path, label, isOptionalGho
             }
             return {};
         }
-        return null;
+        // Fallback: return empty string for unknown types (safer than null)
+        console.warn('[createDefault] Unknown type, defaulting to empty string:', k, n.name);
+        return '';
     };
 
     // Handle "Ghost" state (Optional field not present)
