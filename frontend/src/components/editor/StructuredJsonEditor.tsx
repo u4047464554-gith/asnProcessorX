@@ -544,8 +544,13 @@ function NodeRenderer({ node, value, onChange, level, path, label, isOptionalGho
             ? Math.ceil(cleanHex.length / 2)
             : bitLength;
 
-        // For small BIT STRING fields (≤32 bits), use the compact roller input
-        const useRollerInput = !isOctetString && typeof bitLength === 'number' && bitLength > 0 && bitLength <= 32;
+        // Use the BitValueInput for BIT STRING fields with known size constraint
+        // or up to 53 bits (JavaScript safe integer limit)
+        // This provides the friendly Dec/Hex/Bin input UI
+        const useRollerInput = !isOctetString && typeof bitLength === 'number' && bitLength > 0 && (
+            (typeof constraintSize === 'number') ||  // Always use for constrained fields
+            bitLength <= 53  // Or if small enough for JS number
+        );
 
         if (useRollerInput) {
             // Convert hex to number value
@@ -582,9 +587,24 @@ function NodeRenderer({ node, value, onChange, level, path, label, isOptionalGho
                             const isHex = /^0x[0-9a-fA-F]*$/i.test(val) || /^[0-9a-fA-F]*$/i.test(val);
 
                             if (isHex) {
-                                const clean = val.replace(/^0x/i, '');
-                                const newBitLen = clean.length * 4;
-                                handlePrimitiveChange([val, newBitLen]);
+                                let clean = val.replace(/^0x/i, '');
+
+                                // If there's a size constraint, truncate hex to fit
+                                // e.g., SIZE(38) means max ceil(38/4)=10 hex chars
+                                if (typeof constraintSize === 'number' && constraintSize > 0) {
+                                    const maxHexChars = Math.ceil(constraintSize / 4);
+                                    if (clean.length > maxHexChars) {
+                                        clean = clean.slice(0, maxHexChars);
+                                    }
+                                    // Preserve 0x prefix if it was there
+                                    const newHex = val.startsWith('0x') || val.startsWith('0X')
+                                        ? '0x' + clean
+                                        : clean;
+                                    handlePrimitiveChange([newHex, constraintSize]);
+                                } else {
+                                    // No constraint - use hex length for bit count
+                                    handlePrimitiveChange([val, clean.length * 4]);
+                                }
                             }
                             // Note: We effectively just ignore non-hex input (it won't update state)
                             // This is strict input masking

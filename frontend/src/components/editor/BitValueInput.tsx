@@ -3,7 +3,7 @@ import { Stack, Group, ActionIcon, Text, TextInput } from '@mantine/core';
 import { IconChevronUp, IconChevronDown } from '@tabler/icons-react';
 
 interface BitValueInputProps {
-    value: number;
+    value: number | bigint;
     onChange: (value: number) => void;
     bitLength: number;
     disabled?: boolean;
@@ -15,6 +15,7 @@ type RadixMode = 'dec' | 'hex' | 'bin';
  * Stacked multi-radix value input with Dec/Hex/Bin rows.
  * Click a row to edit it - other rows update in real-time.
  * Supports scroll wheel, up/down arrows.
+ * Uses BigInt internally to support arbitrary bit lengths.
  */
 export const BitValueInput: React.FC<BitValueInputProps> = ({
     value,
@@ -27,12 +28,17 @@ export const BitValueInput: React.FC<BitValueInputProps> = ({
     const [isEditing, setIsEditing] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
 
-    // For large bit lengths, use BigInt-like handling but stay within safe range
-    const maxValue = bitLength >= 31 ? Math.pow(2, bitLength) - 1 : (1 << bitLength) - 1;
-    const clamp = useCallback((v: number) => Math.max(0, Math.min(maxValue, Math.floor(v))), [maxValue]);
+    // Use BigInt for arbitrary precision
+    const bigValue = BigInt(value);
+    const maxValue = (BigInt(1) << BigInt(bitLength)) - BigInt(1);
+    const clamp = useCallback((v: bigint) => {
+        if (v < BigInt(0)) return BigInt(0);
+        if (v > maxValue) return maxValue;
+        return v;
+    }, [maxValue]);
 
     // Format value for display
-    const formatValue = useCallback((v: number, mode: RadixMode): string => {
+    const formatValue = useCallback((v: bigint, mode: RadixMode): string => {
         const clamped = clamp(v);
         switch (mode) {
             case 'dec':
@@ -54,24 +60,24 @@ export const BitValueInput: React.FC<BitValueInputProps> = ({
     }, [bitLength, clamp]);
 
     // Parse input value
-    const parseInput = useCallback((input: string, mode: RadixMode): number | null => {
+    const parseInput = useCallback((input: string, mode: RadixMode): bigint | null => {
         const cleaned = input.replace(/\s/g, '').trim();
-        if (!cleaned) return 0;
+        if (!cleaned) return BigInt(0);
 
         try {
-            let parsed: number;
+            let parsed: bigint;
             switch (mode) {
                 case 'dec':
-                    parsed = parseInt(cleaned, 10);
+                    parsed = BigInt(cleaned);
                     break;
                 case 'hex':
-                    parsed = parseInt(cleaned, 16);
+                    parsed = BigInt('0x' + cleaned);
                     break;
                 case 'bin':
-                    parsed = parseInt(cleaned, 2);
+                    parsed = BigInt('0b' + cleaned);
                     break;
             }
-            if (isNaN(parsed) || parsed < 0) return null;
+            if (parsed < BigInt(0)) return null;
             return clamp(parsed);
         } catch {
             return null;
@@ -80,14 +86,14 @@ export const BitValueInput: React.FC<BitValueInputProps> = ({
 
     // Increment/decrement
     const increment = useCallback(() => {
-        if (disabled || value >= maxValue) return;
-        onChange(clamp(value + 1));
-    }, [value, onChange, disabled, clamp, maxValue]);
+        if (disabled || bigValue >= maxValue) return;
+        onChange(Number(clamp(bigValue + BigInt(1))));
+    }, [bigValue, onChange, disabled, clamp, maxValue]);
 
     const decrement = useCallback(() => {
-        if (disabled || value <= 0) return;
-        onChange(clamp(value - 1));
-    }, [value, onChange, disabled, clamp]);
+        if (disabled || bigValue <= BigInt(0)) return;
+        onChange(Number(clamp(bigValue - BigInt(1))));
+    }, [bigValue, onChange, disabled, clamp]);
 
     // Handle wheel scroll
     const handleWheel = useCallback((e: React.WheelEvent) => {
@@ -101,16 +107,17 @@ export const BitValueInput: React.FC<BitValueInputProps> = ({
     const startEditing = useCallback((mode: RadixMode) => {
         if (disabled) return;
         setActiveMode(mode);
-        setEditValue(formatValue(value, mode).replace(/\s/g, ''));
+        setEditValue(formatValue(bigValue, mode).replace(/\s/g, ''));
         setIsEditing(true);
-    }, [value, disabled, formatValue]);
+    }, [bigValue, disabled, formatValue]);
 
     // Handle input change - update value in real-time
     const handleInputChange = useCallback((newText: string) => {
         setEditValue(newText);
         const parsed = parseInput(newText, activeMode);
         if (parsed !== null) {
-            onChange(parsed);
+            // Convert BigInt back to number for the callback
+            onChange(Number(parsed));
         }
     }, [activeMode, onChange, parseInput]);
 
@@ -125,15 +132,15 @@ export const BitValueInput: React.FC<BitValueInputProps> = ({
             e.preventDefault();
             increment();
             // Update edit value to reflect new value
-            setEditValue(formatValue(clamp(value + 1), activeMode).replace(/\s/g, ''));
+            setEditValue(formatValue(clamp(bigValue + BigInt(1)), activeMode).replace(/\s/g, ''));
         } else if (e.key === 'ArrowDown') {
             e.preventDefault();
             decrement();
-            setEditValue(formatValue(clamp(value - 1), activeMode).replace(/\s/g, ''));
+            setEditValue(formatValue(clamp(bigValue - BigInt(1)), activeMode).replace(/\s/g, ''));
         } else if (e.key === 'Enter' || e.key === 'Escape') {
             finishEditing();
         }
-    }, [increment, decrement, finishEditing, formatValue, value, activeMode, clamp]);
+    }, [increment, decrement, finishEditing, formatValue, bigValue, activeMode, clamp]);
 
     // Focus input when editing starts
     useEffect(() => {
@@ -146,13 +153,13 @@ export const BitValueInput: React.FC<BitValueInputProps> = ({
     // Update edit value when external value changes
     useEffect(() => {
         if (isEditing) {
-            setEditValue(formatValue(value, activeMode).replace(/\s/g, ''));
+            setEditValue(formatValue(bigValue, activeMode).replace(/\s/g, ''));
         }
-    }, [value, isEditing, activeMode, formatValue]);
+    }, [bigValue, isEditing, activeMode, formatValue]);
 
     const renderRow = (mode: RadixMode, label: string) => {
         const isActive = activeMode === mode;
-        const displayValue = formatValue(value, mode);
+        const displayValue = formatValue(bigValue, mode);
 
         return (
             <Group
